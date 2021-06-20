@@ -91,6 +91,8 @@ contract StrategyUniverseStaking is BaseStrategy {
         return IStaking(staking).balanceOf(address(this), address(want)).add(want.balanceOf(address(this)));
     }
 
+    /* ========== MUTATIVE FUNCTIONS ========== */
+
     function prepareReturn(uint256 _debtOutstanding)
         internal
         override
@@ -233,7 +235,9 @@ contract StrategyUniverseStaking is BaseStrategy {
     
         return _ethToWant;
     }
-    
+
+    /* ========== SETTERS ========== */
+
     // set number of batches we sell our claimed XYZ in
     function setSellsPerEpoch(uint256 _sellsPerEpoch)
         external
