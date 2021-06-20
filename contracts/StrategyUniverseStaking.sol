@@ -17,6 +17,7 @@ import {
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {IUniswapV2Router02} from "./interfaces/uniswap.sol";
+import "@openzeppelin/contracts/math/Math.sol";
 
 interface IStaking {
     function deposit(address tokenAddress, uint256 amount) external; // pass want as tokenAdress here
@@ -34,7 +35,7 @@ interface IStaking {
 interface IRewards {
     function claim() external; // this is claiming our rewards
 
-    function owed(address userAddress) external; // this is how much XYZ token we can claim
+    function owed(address userAddress) external view returns (uint256); // this is how much XYZ token we can claim
 }
 
 contract StrategyUniverseStaking is BaseStrategy {
@@ -46,11 +47,14 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     address internal constant staking =
         0x2d615795a8bdb804541C69798F13331126BA0c09; // Universe's staking contract
-    address internal constant rewards =
+    address internal constant rewardsContract =
         0xF306Ad6a3E2aBd5CFD6687A2C86998f1d9c31205; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
     uint256 public sellsPerEpoch = 2; // number of sells we divide our claim up into
+
+    address private constant sushiswapRouter =
+        0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
 
     IERC20 public constant xyz =
         IERC20(0x618679dF9EfCd19694BB1daa8D00718Eacfa2883);
@@ -73,13 +77,6 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // add approvals on all tokens
         xyz.safeApprove(sushiswapRouter, type(uint256).max);
-
-        // xyz token path
-        xyzPath = new address[](4);
-        xyzPath[0] = address(xyz);
-        xyzPath[1] = address(usdc);
-        xyzPath[2] = address(weth);
-        xyzPath[3] = address(want);
     }
 
     /* ========== VIEWS ========== */
@@ -108,21 +105,28 @@ contract StrategyUniverseStaking is BaseStrategy {
         )
     {
         // if we have anything to claim, then claim our rewards
-        uint256 owed = IRewards(rewards).owed(address(this));
+        uint256 owed = IRewards(rewardsContract).owed(address(this));
         if (owed > 0) {
             // claim our rewards
-            IRewards(rewards).claim();
+            IRewards(rewardsContract).claim();
         }
 
         // if we have xyz to sell, then sell some of it
         uint256 _xyzBalance = xyz.balanceOf(address(this));
         if (_xyzBalance > 0) {
             // sell some fraction of our rewards to avoid hitting too much slippage
-            uint256 _toSell =
-                _xyzBalance.mul(1.div(sellsPerEpoch.sub(sellCounter)));
+            uint256 _toSell = _xyzBalance.div(sellsPerEpoch.sub(sellCounter));
 
             // sell our XYZ
-            if (_toSell > 0)
+            if (_toSell > 0) {
+                // xyz token path
+                address[] memory xyzPath = new address[](4);
+                xyzPath[0] = address(xyz);
+                xyzPath[1] = address(usdc);
+                xyzPath[2] = address(weth);
+                xyzPath[3] = address(want);
+
+                // sell it
                 IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
                     _toSell,
                     uint256(0),
@@ -130,6 +134,7 @@ contract StrategyUniverseStaking is BaseStrategy {
                     address(this),
                     now
                 );
+            }
         }
 
         // serious loss should never happen, but if it does (for instance, if Curve is hacked), let's record it accurately
@@ -219,10 +224,10 @@ contract StrategyUniverseStaking is BaseStrategy {
         // see how much we have staked and how much we can claim
         uint256 stakedTokens =
             IStaking(staking).balanceOf(address(this), address(want));
-        uint256 owed = IRewards(rewards).owed(address(this));
+        uint256 owed = IRewards(rewardsContract).owed(address(this));
 
         // claim rewards if we have them and withdraw our staked want tokens if we have them
-        if (owed > 0) IRewards(rewards).claim();
+        if (owed > 0) IRewards(rewardsContract).claim();
         if (stakedTokens > 0)
             IStaking(staking).withdraw(address(want), stakedTokens);
 
@@ -258,7 +263,7 @@ contract StrategyUniverseStaking is BaseStrategy {
                 ethPath
             );
 
-        uint256 _ethToWant = callCostInWant[callCostInDai.length - 1];
+        uint256 _ethToWant = callCostInWant[callCostInWant.length - 1];
 
         return _ethToWant;
     }
