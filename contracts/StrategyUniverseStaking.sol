@@ -18,16 +18,22 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {IUniswapV2Router02} from "./interfaces/uniswap.sol";
 
-
 interface IStaking {
     function deposit(address tokenAddress, uint256 amount) external; // pass want as tokenAdress here
+
     function withdraw(address tokenAddress, uint256 amount) external; // pass want as tokenAdress here
+
     function emergencyWithdraw(address tokenAddress) external; // can only be done if the last withdraw was > 10 epochs before
-    function balanceOf(address user, address token) external view returns (uint256); // how much of our want we have staked
+
+    function balanceOf(address user, address token)
+        external
+        view
+        returns (uint256); // how much of our want we have staked
 }
 
 interface IRewards {
     function claim() external; // this is claiming our rewards
+
     function owed(address userAddress) external; // this is how much XYZ token we can claim
 }
 
@@ -35,11 +41,13 @@ contract StrategyUniverseStaking is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
-    
+
     /* ========== STATE VARIABLES ========== */
 
-    address internal constant staking = 0x2d615795a8bdb804541C69798F13331126BA0c09; // Universe's staking contract
-    address internal constant rewards = 0xF306Ad6a3E2aBd5CFD6687A2C86998f1d9c31205; // This is the rewards contract we claim from
+    address internal constant staking =
+        0x2d615795a8bdb804541C69798F13331126BA0c09; // Universe's staking contract
+    address internal constant rewards =
+        0xF306Ad6a3E2aBd5CFD6687A2C86998f1d9c31205; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
     uint256 public sellsPerEpoch = 2; // number of sells we divide our claim up into
@@ -50,7 +58,6 @@ contract StrategyUniverseStaking is BaseStrategy {
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 public constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
-
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -83,7 +90,10 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     function estimatedTotalAssets() public view override returns (uint256) {
         // look at our staked tokens and any free tokens sitting in the strategy
-        return IStaking(staking).balanceOf(address(this), address(want)).add(want.balanceOf(address(this)));
+        return
+            IStaking(staking).balanceOf(address(this), address(want)).add(
+                want.balanceOf(address(this))
+            );
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -103,16 +113,23 @@ contract StrategyUniverseStaking is BaseStrategy {
             // claim our rewards
             IRewards(rewards).claim();
         }
-        
+
         // if we have xyz to sell, then sell some of it
-        uint256 _xyzBalance = xyz.balanceOf(address(this));            
+        uint256 _xyzBalance = xyz.balanceOf(address(this));
         if (_xyzBalance > 0) {
             // sell some fraction of our rewards to avoid hitting too much slippage
-            uint256 _toSell = _xyzBalance.mul(1.div(sellsPerEpoch.sub(sellCounter)))
-            
+            uint256 _toSell =
+                _xyzBalance.mul(1.div(sellsPerEpoch.sub(sellCounter)));
+
             // sell our XYZ
-            if (_toSell > 0) IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(_toSell, uint256(0), xyzPath, address(this), now);
-            
+            if (_toSell > 0)
+                IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
+                    _toSell,
+                    uint256(0),
+                    xyzPath,
+                    address(this),
+                    now
+                );
         }
 
         // serious loss should never happen, but if it does (for instance, if Curve is hacked), let's record it accurately
@@ -130,8 +147,12 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
         if (_debtOutstanding > 0) {
-        	uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
-        	IStaking(staking).withdraw(address(want), Math.min(stakedTokens, _debtOutstanding));
+            uint256 stakedTokens =
+                IStaking(staking).balanceOf(address(this), address(want));
+            IStaking(staking).withdraw(
+                address(want),
+                Math.min(stakedTokens, _debtOutstanding)
+            );
 
             _debtPayment = Math.min(
                 _debtOutstanding,
@@ -157,8 +178,12 @@ contract StrategyUniverseStaking is BaseStrategy {
     {
         uint256 wantBal = want.balanceOf(address(this));
         if (_amountNeeded > wantBal) {
-        	uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
-        	IStaking(staking).withdraw(address(want), Math.min(stakedTokens, _amountNeeded - wantBal));
+            uint256 stakedTokens =
+                IStaking(staking).balanceOf(address(this), address(want));
+            IStaking(staking).withdraw(
+                address(want),
+                Math.min(stakedTokens, _amountNeeded - wantBal)
+            );
 
             uint256 withdrawnBal = want.balanceOf(address(this));
             _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
@@ -170,35 +195,39 @@ contract StrategyUniverseStaking is BaseStrategy {
                 _loss = debt.sub(assets);
             }
         } else {
-          // we have enough balance to cover the liquidation available
-          return (_amountNeeded, 0);
+            // we have enough balance to cover the liquidation available
+            return (_amountNeeded, 0);
         }
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
-        if (stakedTokens > 0) IStaking(staking).withdraw(address(want), stakedTokens);
+        uint256 stakedTokens =
+            IStaking(staking).balanceOf(address(this), address(want));
+        if (stakedTokens > 0)
+            IStaking(staking).withdraw(address(want), stakedTokens);
         return want.balanceOf(address(this));
     }
-    
+
     // only do this if absolutely necessary
     function emergencyWithdraw() external onlyAuthorized {
-    	IStaking(staking).emergencyWithdraw(address(want));
+        IStaking(staking).emergencyWithdraw(address(want));
     }
 
     // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
 
     function prepareMigration(address _newStrategy) internal override {
-    	// see how much we have staked and how much we can claim
-        uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
+        // see how much we have staked and how much we can claim
+        uint256 stakedTokens =
+            IStaking(staking).balanceOf(address(this), address(want));
         uint256 owed = IRewards(rewards).owed(address(this));
-        
+
         // claim rewards if we have them and withdraw our staked want tokens if we have them
         if (owed > 0) IRewards(rewards).claim();
-        if (stakedTokens > 0) IStaking(staking).withdraw(address(want), stakedTokens);
-        
+        if (stakedTokens > 0)
+            IStaking(staking).withdraw(address(want), stakedTokens);
+
         // send our claimed xyz to the new strategy
-        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));    
+        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
     }
 
     function protectedTokens()
@@ -209,7 +238,6 @@ contract StrategyUniverseStaking is BaseStrategy {
     {
         address[] memory protected = new address[](1);
         protected[0] = address(xyz);
-    
     }
 
     function ethToWant(uint256 _amtInWei)
@@ -219,26 +247,26 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (uint256)
     {
-    	address[] memory ethPath = new address[](3);
+        address[] memory ethPath = new address[](3);
         ethPath[0] = address(weth);
         ethPath[1] = address(usdc);
         ethPath[2] = address(xyz);
 
-        uint256[] memory callCostInWant = IUniswapV2Router02(sushiswapRouter).getAmountsOut(_amtInWei, ethPath);
+        uint256[] memory callCostInWant =
+            IUniswapV2Router02(sushiswapRouter).getAmountsOut(
+                _amtInWei,
+                ethPath
+            );
 
         uint256 _ethToWant = callCostInWant[callCostInDai.length - 1];
-    
+
         return _ethToWant;
     }
 
     /* ========== SETTERS ========== */
 
     // set number of batches we sell our claimed XYZ in
-    function setSellsPerEpoch(uint256 _sellsPerEpoch)
-        external
-        onlyAuthorized
-    {
+    function setSellsPerEpoch(uint256 _sellsPerEpoch) external onlyAuthorized {
         sellsPerEpoch = _sellsPerEpoch;
     }
-    
 }
