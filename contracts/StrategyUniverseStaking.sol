@@ -5,11 +5,6 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-// - harvest uses a "sell counter"
-// - have this number be adjustable
-// - sell 1 / (counterMax - counter) of our balance
-
-
 // These are the core Yearn libraries
 import {
     BaseStrategy,
