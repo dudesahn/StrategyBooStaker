@@ -109,6 +109,7 @@ contract StrategyUniverseStaking is BaseStrategy {
             IRewards(rewards).claim();
         }
         
+        // if we have xyz to sell, then sell some of it
         uint256 _xyzBalance = xyz.balanceOf(address(this));            
         if (_xyzBalance > 0) {
             // sell some fraction of our rewards to avoid hitting too much slippage
@@ -148,7 +149,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         if (emergencyExit) {
             return;
         }
-        // if this is part of a harvest call, send all of our want tokens to be deposited
+        // send all of our want tokens to be deposited
         uint256 _toInvest = want.balanceOf(address(this));
         // stake only if we have something to stake
         if (_toInvest > 0) IStaking(staking).deposit(address(want), _toInvest);
@@ -159,22 +160,35 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        // TODO: Do stuff here to free up to `_amountNeeded` from all positions back into `want`
-        // NOTE: Maintain invariant `want.balanceOf(this) >= _liquidatedAmount`
-        // NOTE: Maintain invariant `_liquidatedAmount + _loss <= _amountNeeded`
+        uint256 wantBal = want.balanceOf(address(this));
+        if (_amountNeeded > wantBal) {
+        	uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
+        	IStaking(staking).withdraw(address(want), Math.min(stakedTokens, _amountNeeded - wantBal));
 
-        uint256 totalAssets = want.balanceOf(address(this));
-        if (_amountNeeded > totalAssets) {
-            _liquidatedAmount = totalAssets;
-            _loss = _amountNeeded.sub(totalAssets);
+            uint256 withdrawnBal = want.balanceOf(address(this));
+            _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
+
+            // if _amountNeeded != withdrawnBal, then we have an error
+            if (_amountNeeded != withdrawnBal) {
+                uint256 assets = estimatedTotalAssets();
+                uint256 debt = vault.strategies(address(this)).totalDebt;
+                _loss = debt.sub(assets);
+            }
         } else {
-            _liquidatedAmount = _amountNeeded;
+          // we have enough balance to cover the liquidation available
+          return (_amountNeeded, 0);
         }
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        // TODO: Liquidate all positions and return the amount freed.
+        uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
+        if (stakedTokens > 0) IStaking(staking).withdraw(address(want), stakedTokens);
         return want.balanceOf(address(this));
+    }
+    
+    // only do this if absolutely necessary
+    function emergencyWithdraw() external onlyAuthorized {
+    	IStaking(staking).emergencyWithdraw(address(want));
     }
 
     // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
