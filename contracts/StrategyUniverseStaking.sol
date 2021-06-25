@@ -32,10 +32,8 @@ interface IStaking {
         returns (uint256); // how much of our want we have staked
 }
 
-interface IRewards {
-    function claim() external; // this is claiming our rewards
-
-    function owed(address userAddress) external view returns (uint256); // this is how much XYZ token we can claim
+interface IFarming {
+    function massHarvest() external returns (uint256); // this is claiming our rewards
 }
 
 contract StrategyUniverseStaking is BaseStrategy {
@@ -47,8 +45,7 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     address internal constant staking =
         0x2d615795a8bdb804541C69798F13331126BA0c09; // Universe's staking contract
-    address internal constant rewardsContract =
-        0xF306Ad6a3E2aBd5CFD6687A2C86998f1d9c31205; // This is the rewards contract we claim from
+    address public farmingContract; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
     uint256 public sellsPerEpoch = 2; // number of sells we divide our claim up into
@@ -65,12 +62,13 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _vault) public BaseStrategy(_vault) {
+    constructor(address _vault, address _farmingContract) public BaseStrategy(_vault) {
         // You can set these parameters on deployment to whatever you want
         minReportDelay = 0;
         maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
         debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
         profitFactor = 4000; // in this strategy, profitFactor is only used for telling keep3rs when to move funds from vault to strategy (what previously was an earn call)
+        farmingContract = _farmingContract;
 
         // want = crvIB, Curve's Iron Bank pool (ycDai+ycUsdc+ycUsdt)
         want.safeApprove(address(staking), type(uint256).max);
@@ -105,10 +103,10 @@ contract StrategyUniverseStaking is BaseStrategy {
         )
     {
         // if we have anything to claim, then claim our rewards
-        uint256 owed = IRewards(rewardsContract).owed(address(this));
+        uint256 owed = IFarming(farmingContract).owed(address(this));
         if (owed > 0) {
             // claim our rewards
-            IRewards(rewardsContract).claim();
+            IFarming(farmingContract).massHarvest();
         }
 
         // if we have xyz to sell, then sell some of it
@@ -224,10 +222,10 @@ contract StrategyUniverseStaking is BaseStrategy {
         // see how much we have staked and how much we can claim
         uint256 stakedTokens =
             IStaking(staking).balanceOf(address(this), address(want));
-        uint256 owed = IRewards(rewardsContract).owed(address(this));
+        uint256 owed = IFarming(farmingContract).owed(address(this));
 
         // claim rewards if we have them and withdraw our staked want tokens if we have them
-        if (owed > 0) IRewards(rewardsContract).claim();
+        if (owed > 0) IFarming(farmingContract).massHarvest();
         if (stakedTokens > 0)
             IStaking(staking).withdraw(address(want), stakedTokens);
 
