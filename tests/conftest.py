@@ -81,12 +81,14 @@ def vault(pm, gov, rewards, guardian, management, token):
     yield vault
     
 @pytest.fixture
-def strategy(strategist, keeper, vault, StrategyUniverseStaking, gov, guardian, rewardsContract):
+def strategy(strategist, keeper, vault, StrategyUniverseStaking, gov, guardian, rewardsContract, whale, token):
 	# parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed), 
     strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardsContract)
     strategy.setKeeper(keeper, {"from": gov})
     vault.setManagementFee(0, {"from": gov})
     vault.addStrategy(strategy, 10000, 0, 2 ** 256 -1, 1000, {"from": gov})
     strategy.setStrategist('0x8Ef63b525fceF7f8662D98F77f5C9A86ae7dFE09', {"from": gov})
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(1000e18, {"from": whale})
     strategy.harvest({"from": gov})
     yield strategy
