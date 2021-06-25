@@ -102,12 +102,9 @@ contract StrategyUniverseStaking is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        // if we have anything to claim, then claim our rewards
-        uint256 owed = IFarming(farmingContract).owed(address(this));
-        if (owed > 0) {
-            // claim our rewards
-            IFarming(farmingContract).massHarvest();
-        }
+
+        // claim our rewards
+        IFarming(farmingContract).massHarvest();
 
         // if we have xyz to sell, then sell some of it
         uint256 _xyzBalance = xyz.balanceOf(address(this));
@@ -222,10 +219,9 @@ contract StrategyUniverseStaking is BaseStrategy {
         // see how much we have staked and how much we can claim
         uint256 stakedTokens =
             IStaking(staking).balanceOf(address(this), address(want));
-        uint256 owed = IFarming(farmingContract).owed(address(this));
 
         // claim rewards if we have them and withdraw our staked want tokens if we have them
-        if (owed > 0) IFarming(farmingContract).massHarvest();
+        IFarming(farmingContract).massHarvest();
         if (stakedTokens > 0)
             IStaking(staking).withdraw(address(want), stakedTokens);
 
