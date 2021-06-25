@@ -48,7 +48,7 @@ contract StrategyUniverseStaking is BaseStrategy {
     address public farmingContract; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
-    uint256 public sellsPerEpoch = 2; // number of sells we divide our claim up into
+    uint256 public sellsPerEpoch = 1; // number of sells we divide our claim up into
 
     address private constant sushiswapRouter =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
