@@ -129,6 +129,8 @@ contract StrategyUniverseStaking is BaseStrategy {
                     address(this),
                     now
                 );
+                sellCounter = sellCounter.add(1);
+                if (sellCounter == sellsPerEpoch) sellCounter = 0;
             }
         }
 

@@ -20,21 +20,23 @@ def test_simple_harvest(gov, token, vault, dudesahn, strategist, whale, strategy
     print("\nStarting Assets: ", old_assets_dai/1e18)
     print("\nAssets Staked: ", staking.balanceOf(strategy, token)/1e18)
         
-    # simulate 8 days of earnings
-    chain.sleep(86400*8)
+    # simulate 3 days of earnings
+    chain.sleep(86400*3)
     chain.mine(1)
 
     # harvest after a day, store new asset amount
+    strategy.harvest({"from": gov})
+    chain.sleep(86400)
     strategy.harvest({"from": gov})
     # tx.call_trace(True)
     new_assets_dai = vault.totalAssets()
     # we can't use strategyEstimated Assets because the profits are sent to the vault
     assert new_assets_dai >= old_assets_dai
-    print("\nAssets after 8 days: ", new_assets_dai/1e18)
+    print("\nAssets after 2 days: ", new_assets_dai/1e18)
 
 
-    # Display estimated APR based on the past day
-    print("\nEstimated DAI APR: ", "{:.2%}".format(((new_assets_dai - old_assets_dai) * (365 / 8)) / (strategy.estimatedTotalAssets())))
+    # Display estimated APR based on the two days before the pay out
+    print("\nEstimated SUSHI APR: ", "{:.2%}".format(((new_assets_dai - old_assets_dai) * (365 / 2)) / (strategy.estimatedTotalAssets())))
     
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
@@ -42,4 +44,4 @@ def test_simple_harvest(gov, token, vault, dudesahn, strategist, whale, strategy
     
     # withdraw and confirm we made money
     vault.withdraw({"from": whale})    
-    assert token.balanceOf(whale) >= startingWhale 
+    assert token.balanceOf(whale) >= startingWhale
