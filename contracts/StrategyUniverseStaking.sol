@@ -107,7 +107,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         uint256 _xyzBalance = xyz.balanceOf(address(this));
         if (_xyzBalance > 0 && sellsPerEpoch > 0) {
             // sell some fraction of our rewards to avoid hitting too much slippage
-            uint256 _toSell = _xyzBalance.div(Math.max(sellsPerEpoch.sub(sellCounter), 1);
+            uint256 _toSell = _xyzBalance.div(Math.max(sellsPerEpoch.sub(sellCounter), 1));
 
             // sell our XYZ
             if (_toSell > 0) {
@@ -267,7 +267,8 @@ contract StrategyUniverseStaking is BaseStrategy {
         if (total.add(debtThreshold) < params.totalDebt) return true;
 
         // Trigger if it's been long enough since our last harvest based on our DCA schedule. each epoch is 1 week.
-        if (block.timestamp.sub(params.lastReport) > (86400 * 7).div(sellsPerEpoch)) return true; 
+        uint256 week = 86400 * 7;
+        if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch)) return true; 
     }
     
     function prepareMigration(address _newStrategy) internal override {
