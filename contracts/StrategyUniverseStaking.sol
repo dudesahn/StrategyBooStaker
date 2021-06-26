@@ -215,8 +215,42 @@ contract StrategyUniverseStaking is BaseStrategy {
         IStaking(staking).emergencyWithdraw(address(want));
     }
 
-    // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
+    function harvestTrigger(uint256 callCostinEth)
+        public
+        view
+        override
+        returns (bool)
+    {
+        StrategyParams memory params = vault.strategies(address(this));
 
+        // Should not trigger if Strategy is not activated
+        if (params.activation == 0) return false;
+
+        // Should not trigger if we haven't waited long enough since previous harvest
+        if (block.timestamp.sub(params.lastReport) < minReportDelay)
+            return false;
+
+        // Should trigger if hasn't been called in a while
+        if (block.timestamp.sub(params.lastReport) >= maxReportDelay)
+            return true;
+
+        // If some amount is owed, pay it back
+        // NOTE: Since debt is based on deposits, it makes sense to guard against large
+        //       changes to the value from triggering a harvest directly through user
+        //       behavior. This should ensure reasonable resistance to manipulation
+        //       from user-initiated withdrawals as the outstanding debt fluctuates.
+        uint256 outstanding = vault.debtOutstanding();
+        if (outstanding > debtThreshold) return true;
+
+        // Check for profits and losses
+        uint256 total = estimatedTotalAssets();
+        // Trigger if we have a loss to report
+        if (total.add(debtThreshold) < params.totalDebt) return true;
+
+        // Trigger if it's been long enough since our last harvest based on our DCA schedule
+        if (block.timestamp.sub(params.lastReport) > (86400 * 7).div(sellsPerEpoch + 1)) return true; 
+    }
+    
     function prepareMigration(address _newStrategy) internal override {
         // see how much we have staked and how much we can claim
         uint256 stakedTokens =
