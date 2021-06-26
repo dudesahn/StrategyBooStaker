@@ -2,10 +2,10 @@ import brownie
 from brownie import Contract
 from brownie import config
 
-# test passes as of
-def test_migration(gov, token, vault, guardian, strategist, whale, strategy, chain, strategist_ms, rewardsContract, StrategyUniverseStaking):
+# test passes as of 21-06-26
+def test_migration(gov, token, vault, guardian, strategist, whale, strategy, chain, strategist_ms, shared_setup, StrategyUniverseStaking, rewardscontract):
     # deploy our new strategy
-    new_strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardsContract)
+    new_strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardscontract)
     total_old = strategy.estimatedTotalAssets()
 
     # migrate our old strategy

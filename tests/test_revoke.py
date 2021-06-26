@@ -2,8 +2,8 @@ import brownie
 from brownie import Contract
 from brownie import config
 
-# test passes as of 21-05-20
-def test_revoke_strategy_from_vault(gov, token, vault, whale, chain, strategy):
+# test passes as of 21-06-26
+def test_revoke_strategy_from_vault(gov, token, vault, whale, chain, strategy, shared_setup):
     vaultAssets_starting = vault.totalAssets()
     vault_holdings_starting = token.balanceOf(vault)
     strategy_starting = strategy.estimatedTotalAssets()

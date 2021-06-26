@@ -48,7 +48,7 @@ contract StrategyUniverseStaking is BaseStrategy {
     address public farmingContract; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
-    uint256 public sellsPerEpoch; // number of sells we divide our claim up into for slippage reasons
+    uint256 public sellsPerEpoch = 1; // number of sells we divide our claim up into
 
     address private constant sushiswapRouter =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
@@ -103,11 +103,14 @@ contract StrategyUniverseStaking is BaseStrategy {
         )
     {
 
+        // claim our rewards
+        if (sellCounter == 0) IFarming(farmingContract).massHarvest();
+
         // if we have xyz to sell, then sell some of it
         uint256 _xyzBalance = xyz.balanceOf(address(this));
-        if (_xyzBalance > 0 && sellsPerEpoch > 0) {
+        if (_xyzBalance > 0) {
             // sell some fraction of our rewards to avoid hitting too much slippage
-            uint256 _toSell = _xyzBalance.div(Math.max(sellsPerEpoch.sub(sellCounter), 1));
+            uint256 _toSell = _xyzBalance.div(sellsPerEpoch.sub(sellCounter));
 
             // sell our XYZ
             if (_toSell > 0) {
@@ -127,27 +130,10 @@ contract StrategyUniverseStaking is BaseStrategy {
                     now
                 );
                 sellCounter = sellCounter.add(1);
+                if (sellCounter == sellsPerEpoch) sellCounter = 0;
             }
         }
-        // make sure we have balance staked; otherwise not worth the gas to massHarvest (100k gas)
-        uint256 stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
-        
-        if (sellCounter == sellsPerEpoch && sellsPerEpoch > 0) {
-        	// claim our rewards for all available epochs since we've sold all we need to
-        	IFarming(farmingContract).massHarvest();
-        	
-        	// reset our sell counter since we're done selling and just claimed. 
-        	sellCounter = 0;
 
-        } else if (sellsPerEpoch == 0 && stakedTokens > 0) {
-            // try and claim our rewards for the first time if we have balance staked
-        	IFarming(farmingContract).massHarvest();
-        	
-        	// if we successfully claimed some xyz, make sure we start selling it
-        	uint256 _xyzBalance = xyz.balanceOf(address(this));
-        	if (_xyzBalance > 0) sellsPerEpoch = 1;
-        }
-        
         // serious loss should never happen, but if it does (for instance, if Curve is hacked), let's record it accurately
         uint256 assets = estimatedTotalAssets();
         uint256 debt = vault.strategies(address(this)).totalDebt;
@@ -163,8 +149,9 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
         if (_debtOutstanding > 0) {
-            stakedTokens = IStaking(staking).balanceOf(address(this), address(want));
-                
+            uint256 stakedTokens =
+                IStaking(staking).balanceOf(address(this), address(want));
+
             // add in a check for > 0 as withdraw reverts with 0 amount
             if (stakedTokens > 0) IStaking(staking).withdraw(
                 address(want),
@@ -197,7 +184,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         if (_amountNeeded > wantBal) {
             uint256 stakedTokens =
                 IStaking(staking).balanceOf(address(this), address(want));
-            
+
             // add in a check for > 0 as withdraw reverts with 0 amount
             if (stakedTokens > 0) IStaking(staking).withdraw(
                 address(want),
@@ -219,7 +206,6 @@ contract StrategyUniverseStaking is BaseStrategy {
         }
     }
 
-	// liquidate all tokens we can without explicitly claiming rewards
     function liquidateAllPositions() internal override returns (uint256) {
         uint256 stakedTokens =
             IStaking(staking).balanceOf(address(this), address(want));
@@ -231,6 +217,30 @@ contract StrategyUniverseStaking is BaseStrategy {
     // only do this if absolutely necessary; as rewards won't be claimed, and this also must be 10 weeks after our last withdrawal. this will revert if we don't have anything to withdraw.
     function emergencyWithdraw() external onlyEmergencyAuthorized {
         IStaking(staking).emergencyWithdraw(address(want));
+    }
+
+    function prepareMigration(address _newStrategy) internal override {
+        // see how much we have staked and how much we can claim
+        uint256 stakedTokens =
+            IStaking(staking).balanceOf(address(this), address(want));
+
+        // claim rewards if we have them and withdraw our staked want tokens if we have them
+        IFarming(farmingContract).massHarvest();
+        if (stakedTokens > 0)
+            IStaking(staking).withdraw(address(want), stakedTokens);
+
+        // send our claimed xyz to the new strategy
+        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
+    }
+
+    function protectedTokens()
+        internal
+        view
+        override
+        returns (address[] memory)
+    {
+        address[] memory protected = new address[](1);
+        protected[0] = address(xyz);
     }
 
 	// our main trigger is regarding our DCA since there is low liquidity for $XYZ
@@ -270,30 +280,6 @@ contract StrategyUniverseStaking is BaseStrategy {
         uint256 week = 86400 * 7;
         if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch)) return true; 
     }
-    
-    function prepareMigration(address _newStrategy) internal override {
-        // see how much we have staked and how much we can claim
-        uint256 stakedTokens =
-            IStaking(staking).balanceOf(address(this), address(want));
-
-        // claim rewards if we have them and withdraw our staked want tokens if we have them
-        IFarming(farmingContract).massHarvest();
-        if (stakedTokens > 0)
-            IStaking(staking).withdraw(address(want), stakedTokens);
-
-        // send our claimed xyz to the new strategy
-        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
-    }
-
-    function protectedTokens()
-        internal
-        view
-        override
-        returns (address[] memory)
-    {
-        address[] memory protected = new address[](1);
-        protected[0] = address(xyz);
-    }
 
     function ethToWant(uint256 _amtInWei)
         public
@@ -322,8 +308,9 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     // set number of batches we sell our claimed XYZ in
     function setSellsPerEpoch(uint256 _sellsPerEpoch) external onlyEmergencyAuthorized {
+    	require (_sellsPerEpoch != 0, "Must be above 0");
         sellsPerEpoch = _sellsPerEpoch;
-        // reset our sellCounter to be safe
+        // reset our counter to be safe
         sellCounter = 0;
     }
 }

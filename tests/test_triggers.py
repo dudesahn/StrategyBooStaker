@@ -2,8 +2,8 @@ import brownie
 from brownie import Contract
 from brownie import config
 
-# test passes as of 21-05-20
-def test_triggers(gov, token, vault, dudesahn, strategist, whale, strategy, chain, strategist_ms, rewardsContract, curveVoterProxyStrategy):
+# test passes as of 21-06-26
+def test_triggers(gov, token, vault, dudesahn, strategist, whale, strategy, chain, strategist_ms, shared_setup):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})

@@ -19,7 +19,7 @@ def xyz():
     yield Contract("0x618679dF9EfCd19694BB1daa8D00718Eacfa2883")
 
 @pytest.fixture
-def rewardsContract():
+def rewardscontract():
     yield Contract("0xe3e1860a5653c030818226e0cB1efb4a477A5F32")
 
 @pytest.fixture
@@ -81,9 +81,9 @@ def vault(pm, gov, rewards, guardian, management, token):
     yield vault
     
 @pytest.fixture
-def strategy(strategist, keeper, vault, StrategyUniverseStaking, gov, guardian, rewardsContract, whale, token):
+def strategy(strategist, keeper, vault, StrategyUniverseStaking, gov, guardian, rewardscontract, whale, token):
 	# parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed), 
-    strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardsContract)
+    strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardscontract)
     strategy.setKeeper(keeper, {"from": gov})
     vault.setManagementFee(0, {"from": gov})
     vault.addStrategy(strategy, 10000, 0, 2 ** 256 -1, 1000, {"from": gov})
