@@ -2,12 +2,12 @@ import brownie
 from brownie import Contract
 from brownie import config
 
-def test_emergency_exit(gov, token, vault, dudesahn, strategist, whale, strategy, chain, strategist_ms, rewardsContract, staking):
+def test_emergency_exit(gov, token, vault, whale, strategy, chain, strategist_ms, rewardsContract, staking):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(1000e18, {"from": whale})
-    strategy.harvest({"from": dudesahn})
+    strategy.harvest({"from": gov})
 
     # simulate nine days of earnings to make sure we hit at least one epoch of rewards
     chain.sleep(86400*9)
@@ -15,7 +15,7 @@ def test_emergency_exit(gov, token, vault, dudesahn, strategist, whale, strategy
 
     # set emergency and exit, then confirm that the strategy has no funds
     strategy.setEmergencyExit({"from": gov})
-    strategy.harvest({"from": dudesahn})
+    strategy.harvest({"from": gov})
     assert strategy.estimatedTotalAssets() == 0
     assert staking.balanceOf(strategy) == 0
 
