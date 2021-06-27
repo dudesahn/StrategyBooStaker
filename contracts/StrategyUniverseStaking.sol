@@ -62,7 +62,10 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _vault, address _farmingContract) public BaseStrategy(_vault) {
+    constructor(address _vault, address _farmingContract)
+        public
+        BaseStrategy(_vault)
+    {
         // You can set these parameters on deployment to whatever you want
         minReportDelay = 0;
         maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
@@ -102,7 +105,6 @@ contract StrategyUniverseStaking is BaseStrategy {
             uint256 _debtPayment
         )
     {
-
         // claim our rewards
         if (sellCounter == 0) IFarming(farmingContract).massHarvest();
 
@@ -153,10 +155,11 @@ contract StrategyUniverseStaking is BaseStrategy {
                 IStaking(staking).balanceOf(address(this), address(want));
 
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (stakedTokens > 0) IStaking(staking).withdraw(
-                address(want),
-                Math.min(stakedTokens, _debtOutstanding)
-            );
+            if (stakedTokens > 0)
+                IStaking(staking).withdraw(
+                    address(want),
+                    Math.min(stakedTokens, _debtOutstanding)
+                );
 
             _debtPayment = Math.min(
                 _debtOutstanding,
@@ -186,10 +189,11 @@ contract StrategyUniverseStaking is BaseStrategy {
                 IStaking(staking).balanceOf(address(this), address(want));
 
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (stakedTokens > 0) IStaking(staking).withdraw(
-                address(want),
-                Math.min(stakedTokens, _amountNeeded - wantBal)
-            );
+            if (stakedTokens > 0)
+                IStaking(staking).withdraw(
+                    address(want),
+                    Math.min(stakedTokens, _amountNeeded - wantBal)
+                );
 
             uint256 withdrawnBal = want.balanceOf(address(this));
             _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
@@ -243,7 +247,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         protected[0] = address(xyz);
     }
 
-	// our main trigger is regarding our DCA since there is low liquidity for $XYZ
+    // our main trigger is regarding our DCA since there is low liquidity for $XYZ
     function harvestTrigger(uint256 callCostinEth)
         public
         view
@@ -278,7 +282,8 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // Trigger if it's been long enough since our last harvest based on our DCA schedule. each epoch is 1 week.
         uint256 week = 86400 * 7;
-        if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch)) return true; 
+        if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch))
+            return true;
     }
 
     function ethToWant(uint256 _amtInWei)
@@ -307,8 +312,11 @@ contract StrategyUniverseStaking is BaseStrategy {
     /* ========== SETTERS ========== */
 
     // set number of batches we sell our claimed XYZ in
-    function setSellsPerEpoch(uint256 _sellsPerEpoch) external onlyEmergencyAuthorized {
-    	require (_sellsPerEpoch != 0, "Must be above 0");
+    function setSellsPerEpoch(uint256 _sellsPerEpoch)
+        external
+        onlyEmergencyAuthorized
+    {
+        require(_sellsPerEpoch != 0, "Must be above 0");
         sellsPerEpoch = _sellsPerEpoch;
         // reset our counter to be safe
         sellCounter = 0;
