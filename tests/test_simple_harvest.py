@@ -3,7 +3,19 @@ from brownie import Contract
 from brownie import config
 
 # test passes as of 21-06-26
-def test_simple_harvest(gov, token, vault, dudesahn, strategist, whale, strategy, chain, strategist_ms, staking, shared_setup):
+def test_simple_harvest(
+    gov,
+    token,
+    vault,
+    dudesahn,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    strategist_ms,
+    staking,
+    shared_setup,
+):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -32,8 +44,13 @@ def test_simple_harvest(gov, token, vault, dudesahn, strategist, whale, strategy
     print("\nAssets after 2 days: ", new_assets_dai / 1e18)
 
     # Display estimated APR based on the two days before the pay out
-    print("\nEstimated SUSHI APR: ",
-          "{:.2%}".format(((new_assets_dai - old_assets_dai) * (365 / 9)) / (strategy.estimatedTotalAssets())))
+    print(
+        "\nEstimated SUSHI APR: ",
+        "{:.2%}".format(
+            ((new_assets_dai - old_assets_dai) * (365 / 9))
+            / (strategy.estimatedTotalAssets())
+        ),
+    )
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
