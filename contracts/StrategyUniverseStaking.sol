@@ -292,10 +292,9 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (uint256)
     {
-        address[] memory ethPath = new address[](3);
+        address[] memory ethPath = new address[](2);
         ethPath[0] = address(weth);
-        ethPath[1] = address(usdc);
-        ethPath[2] = address(xyz);
+        ethPath[1] = address(want);
 
         uint256[] memory callCostInWant =
             IUniswapV2Router02(sushiswapRouter).getAmountsOut(
