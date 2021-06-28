@@ -19,8 +19,14 @@ import {
 import "@openzeppelin/contracts/math/Math.sol";
 
 interface IUniswapV2Router02 {
-    function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external returns (uint256[] memory amounts);
-    
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external returns (uint256[] memory amounts);
+
     function getAmountsOut(uint256 amountIn, address[] calldata path)
         external
         view
@@ -58,14 +64,14 @@ contract StrategyUniverseStaking is BaseStrategy {
     uint256 public sellCounter; // track our sells
     uint256 public sellsPerEpoch = 1; // number of sells we divide our claim up into
 
-    address private constant sushiswapRouter =
+    address internal constant sushiswapRouter =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
 
-    IERC20 public constant xyz =
+    IERC20 internal constant xyz =
         IERC20(0x618679dF9EfCd19694BB1daa8D00718Eacfa2883);
-    IERC20 public constant usdc =
+    IERC20 internal constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    IERC20 public constant weth =
+    IERC20 internal constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     /* ========== CONSTRUCTOR ========== */
@@ -93,12 +99,17 @@ contract StrategyUniverseStaking is BaseStrategy {
         return "StrategyUniverseStaking";
     }
 
+    function _balanceOfWant() internal view returns (uint256) {
+        return want.balanceOf(address(this));
+    }
+
+    function _balanceOfStaked() internal view returns (uint256) {
+        return IStaking(staking).balanceOf(address(this), address(want));
+    }
+
     function estimatedTotalAssets() public view override returns (uint256) {
         // look at our staked tokens and any free tokens sitting in the strategy
-        return
-            IStaking(staking).balanceOf(address(this), address(want)).add(
-                want.balanceOf(address(this))
-            );
+        return _balanceOfStaked().add(_balanceOfWant());
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -149,7 +160,7 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // if assets are greater than debt, things are working great!
         if (assets > debt) {
-            _profit = want.balanceOf(address(this));
+            _profit = _balanceOfWant();
         } else {
             // if assets are less than debt, we are in trouble
             _loss = debt.sub(assets);
@@ -158,20 +169,14 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
         if (_debtOutstanding > 0) {
-            uint256 stakedTokens =
-                IStaking(staking).balanceOf(address(this), address(want));
-
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (stakedTokens > 0)
+            if (_balanceOfStaked() > 0)
                 IStaking(staking).withdraw(
                     address(want),
-                    Math.min(stakedTokens, _debtOutstanding)
+                    Math.min(_balanceOfStaked(), _debtOutstanding)
                 );
 
-            _debtPayment = Math.min(
-                _debtOutstanding,
-                want.balanceOf(address(this))
-            );
+            _debtPayment = Math.min(_debtOutstanding, _balanceOfWant());
         }
     }
 
@@ -180,7 +185,7 @@ contract StrategyUniverseStaking is BaseStrategy {
             return;
         }
         // send all of our want tokens to be deposited
-        uint256 _toInvest = want.balanceOf(address(this));
+        uint256 _toInvest = _balanceOfWant();
         // stake only if we have something to stake
         if (_toInvest > 0) IStaking(staking).deposit(address(want), _toInvest);
     }
@@ -190,19 +195,16 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        uint256 wantBal = want.balanceOf(address(this));
+        uint256 wantBal = _balanceOfWant();
         if (_amountNeeded > wantBal) {
-            uint256 stakedTokens =
-                IStaking(staking).balanceOf(address(this), address(want));
-
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (stakedTokens > 0)
+            if (_balanceOfStaked() > 0)
                 IStaking(staking).withdraw(
                     address(want),
-                    Math.min(stakedTokens, _amountNeeded - wantBal)
+                    Math.min(_balanceOfStaked(), _amountNeeded - wantBal)
                 );
 
-            uint256 withdrawnBal = want.balanceOf(address(this));
+            uint256 withdrawnBal = _balanceOfWant();
             _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
 
             // if _amountNeeded > withdrawnBal, then we have an error
@@ -218,11 +220,9 @@ contract StrategyUniverseStaking is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        uint256 stakedTokens =
-            IStaking(staking).balanceOf(address(this), address(want));
-        if (stakedTokens > 0)
-            IStaking(staking).withdraw(address(want), stakedTokens);
-        return want.balanceOf(address(this));
+        if (_balanceOfStaked() > 0)
+            IStaking(staking).withdraw(address(want), _balanceOfStaked());
+        return _balanceOfWant();
     }
 
     // only do this if absolutely necessary; as rewards won't be claimed, and this also must be 10 weeks after our last withdrawal. this will revert if we don't have anything to withdraw.
@@ -231,12 +231,11 @@ contract StrategyUniverseStaking is BaseStrategy {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        // see how much we have staked and how much we can claim
-        uint256 stakedTokens =
-            IStaking(staking).balanceOf(address(this), address(want));
+        if (_balanceOfStaked() > 0)
+            IStaking(staking).withdraw(address(want), _balanceOfStaked());
 
-        if (stakedTokens > 0)
-            IStaking(staking).withdraw(address(want), stakedTokens);
+        // send our claimed xyz to the new strategy
+        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
     }
 
     function protectedTokens()
@@ -247,7 +246,7 @@ contract StrategyUniverseStaking is BaseStrategy {
     {
         address[] memory protected = new address[](1);
         protected[0] = address(xyz);
-        
+
         return protected;
     }
 
