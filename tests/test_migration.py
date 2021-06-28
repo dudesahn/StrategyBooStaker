@@ -3,7 +3,20 @@ from brownie import Contract
 from brownie import config
 
 # test passes as of 21-06-26
-def test_migration(gov, token, vault, guardian, strategist, whale, strategy, chain, strategist_ms, shared_setup, StrategyUniverseStaking, rewardscontract):
+def test_migration(
+    gov,
+    token,
+    vault,
+    guardian,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    strategist_ms,
+    shared_setup,
+    StrategyUniverseStaking,
+    rewardscontract,
+):
     # deploy our new strategy
     new_strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardscontract)
     total_old = strategy.estimatedTotalAssets()
@@ -19,18 +32,18 @@ def test_migration(gov, token, vault, guardian, strategist, whale, strategy, cha
     new_strategy.harvest({"from": gov})
     new_strat_balance = new_strategy.estimatedTotalAssets()
     assert new_strat_balance >= total_old
-    
+
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
-    
+
     # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400*9)
+    chain.sleep(86400 * 9)
     chain.mine(1)
-    
+
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
     chain.mine(1)
-    
+
     # Test out our migrated strategy, confirm we're making a profit
     new_strategy.harvest({"from": gov})
     vaultAssets_2 = vault.totalAssets()

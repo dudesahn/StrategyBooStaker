@@ -3,7 +3,18 @@ from brownie import Contract
 from brownie import config
 
 # test passes as of 21-06-26
-def test_sweep(gov, token, vault, dudesahn, strategist, whale, strategy, chain, strategist_ms, shared_setup):
+def test_sweep(
+    gov,
+    token,
+    vault,
+    dudesahn,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    strategist_ms,
+    shared_setup,
+):
     # Strategy want token doesn't work
     startingWhale = token.balanceOf(whale)
     token.transfer(strategy.address, 1000e18, {"from": whale})

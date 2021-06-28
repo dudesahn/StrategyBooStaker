@@ -3,7 +3,9 @@ from brownie import Contract
 from brownie import config
 
 # test passes as of 21-06-26
-def test_emergency_exit(gov, token, vault, whale, strategy, chain, staking, shared_setup):
+def test_emergency_exit(
+    gov, token, vault, whale, strategy, chain, staking, shared_setup
+):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
@@ -11,7 +13,7 @@ def test_emergency_exit(gov, token, vault, whale, strategy, chain, staking, shar
     strategy.harvest({"from": gov})
 
     # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400*9)
+    chain.sleep(86400 * 9)
     chain.mine(1)
     strategy.harvest({"from": gov})
 
@@ -24,7 +26,7 @@ def test_emergency_exit(gov, token, vault, whale, strategy, chain, staking, shar
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
     chain.mine(1)
-    
+
     # withdraw and confirm we made money
-    vault.withdraw({"from": whale})    
+    vault.withdraw({"from": whale})
     assert token.balanceOf(whale) > startingWhale
