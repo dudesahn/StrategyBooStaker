@@ -176,7 +176,8 @@ contract StrategyUniverseStaking is BaseStrategy {
                 );
 
             _debtPayment = Math.min(_debtOutstanding, _balanceOfWant());
-            if (_debtPayment < _debtOutstanding) _loss = _debtOutstanding.sub(_debtPayment);
+            if (_debtPayment < _debtOutstanding)
+                _loss = _debtOutstanding.sub(_debtPayment);
         }
     }
 
@@ -317,7 +318,10 @@ contract StrategyUniverseStaking is BaseStrategy {
         external
         onlyEmergencyAuthorized
     {
-        require(15 > _sellsPerEpoch && _sellsPerEpoch > 0, "Must be above 0 and less than 15");
+        require(
+            15 > _sellsPerEpoch && _sellsPerEpoch > 0,
+            "Must be above 0 and less than 15"
+        );
         sellsPerEpoch = _sellsPerEpoch;
         // reset our counter to be safe
         sellCounter = 0;
