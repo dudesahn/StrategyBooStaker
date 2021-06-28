@@ -16,8 +16,16 @@ import {
     IERC20,
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import {IUniswapV2Router02} from "./interfaces/uniswap.sol";
 import "@openzeppelin/contracts/math/Math.sol";
+
+interface IUniswapV2Router02 {
+    function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] calldata path, address to, uint256 deadline) external returns (uint256[] memory amounts);
+    
+    function getAmountsOut(uint256 amountIn, address[] calldata path)
+        external
+        view
+        returns (uint256[] memory amounts);
+}
 
 interface IStaking {
     function deposit(address tokenAddress, uint256 amount) external; // pass want as tokenAdress here
@@ -197,11 +205,11 @@ contract StrategyUniverseStaking is BaseStrategy {
             uint256 withdrawnBal = want.balanceOf(address(this));
             _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
 
-            // if _amountNeeded != withdrawnBal, then we have an error
-            if (_amountNeeded != withdrawnBal) {
+            // if _amountNeeded > withdrawnBal, then we have an error
+            if (_amountNeeded > withdrawnBal) {
                 uint256 assets = estimatedTotalAssets();
                 uint256 debt = vault.strategies(address(this)).totalDebt;
-                _loss = debt.sub(assets);
+                if (debt > assets) _loss = debt.sub(assets);
             }
         } else {
             // we have enough balance to cover the liquidation available
@@ -227,13 +235,8 @@ contract StrategyUniverseStaking is BaseStrategy {
         uint256 stakedTokens =
             IStaking(staking).balanceOf(address(this), address(want));
 
-        // claim rewards if we have them and withdraw our staked want tokens if we have them
-        IFarming(farmingContract).massHarvest();
         if (stakedTokens > 0)
             IStaking(staking).withdraw(address(want), stakedTokens);
-
-        // send our claimed xyz to the new strategy
-        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
     }
 
     function protectedTokens()
@@ -244,6 +247,8 @@ contract StrategyUniverseStaking is BaseStrategy {
     {
         address[] memory protected = new address[](1);
         protected[0] = address(xyz);
+        
+        return protected;
     }
 
     // our main trigger is regarding our DCA since there is low liquidity for $XYZ
@@ -288,7 +293,6 @@ contract StrategyUniverseStaking is BaseStrategy {
     function ethToWant(uint256 _amtInWei)
         public
         view
-        virtual
         override
         returns (uint256)
     {
@@ -314,7 +318,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         external
         onlyEmergencyAuthorized
     {
-        require(_sellsPerEpoch != 0, "Must be above 0");
+        require(10 > _sellsPerEpoch > 0, "Must be above 0 and less than 10");
         sellsPerEpoch = _sellsPerEpoch;
         // reset our counter to be safe
         sellCounter = 0;
