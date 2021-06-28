@@ -158,13 +158,12 @@ contract StrategyUniverseStaking is BaseStrategy {
         uint256 assets = estimatedTotalAssets();
         uint256 debt = vault.strategies(address(this)).totalDebt;
 
-        // if assets are greater than debt, things are working great!
+        // if assets are greater than debt, things are working great! loss will be 0 by default
         if (assets > debt) {
             _profit = _balanceOfWant();
         } else {
-            // if assets are less than debt, we are in trouble
+            // if assets are less than debt, we are in trouble. profit will be 0 by default
             _loss = debt.sub(assets);
-            _profit = 0;
         }
 
         // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
@@ -177,6 +176,7 @@ contract StrategyUniverseStaking is BaseStrategy {
                 );
 
             _debtPayment = Math.min(_debtOutstanding, _balanceOfWant());
+            if (_debtPayment < _debtOutstanding) _loss = _debtOutstanding.sub(_debtPayment);
         }
     }
 
@@ -317,7 +317,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         external
         onlyEmergencyAuthorized
     {
-        require(10 > _sellsPerEpoch > 0, "Must be above 0 and less than 10");
+        require(15 > _sellsPerEpoch && _sellsPerEpoch > 0, "Must be above 0 and less than 15");
         sellsPerEpoch = _sellsPerEpoch;
         // reset our counter to be safe
         sellCounter = 0;
