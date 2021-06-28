@@ -70,10 +70,9 @@ contract StrategyUniverseStaking is BaseStrategy {
         minReportDelay = 0;
         maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
         debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
-        profitFactor = 4000; // in this strategy, profitFactor is only used for telling keep3rs when to move funds from vault to strategy (what previously was an earn call)
         farmingContract = _farmingContract;
 
-        // want = crvIB, Curve's Iron Bank pool (ycDai+ycUsdc+ycUsdt)
+        // want is either SUSHI, AAVE, LINK, SNX, or COMP
         want.safeApprove(address(staking), type(uint256).max);
 
         // add approvals on all tokens
