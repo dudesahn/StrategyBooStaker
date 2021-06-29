@@ -13,7 +13,6 @@ def test_triggers(
     strategy,
     chain,
     strategist_ms,
-    shared_setup,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -21,7 +20,9 @@ def test_triggers(
     vault.deposit(1000e18, {"from": whale})
     newWhale = token.balanceOf(whale)
     starting_assets = vault.totalAssets()
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
 
     # simulate a day of earnings
     chain.sleep(86400)
@@ -39,7 +40,9 @@ def test_triggers(
     # harvest should trigger true
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be true.", tx)
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
     assert tx == True
 
     # simulate a day of waiting for share price to bump back up

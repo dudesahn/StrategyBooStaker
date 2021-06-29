@@ -4,13 +4,28 @@ from brownie import config
 
 # test passes as of 21-06-26
 def test_revoke_strategy_from_vault(
-    gov, token, vault, whale, chain, strategy, shared_setup
+    gov,
+    token,
+    vault,
+    whale,
+    chain,
+    strategy,
 ):
+
+    ## deposit to the vault after approving
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(1000e18, {"from": whale})
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
     vaultAssets_starting = vault.totalAssets()
     vault_holdings_starting = token.balanceOf(vault)
     strategy_starting = strategy.estimatedTotalAssets()
     vault.revokeStrategy(strategy.address, {"from": gov})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
     vaultAssets_after_revoke = vault.totalAssets()
     assert vaultAssets_after_revoke >= vaultAssets_starting
     assert strategy.estimatedTotalAssets() == 0

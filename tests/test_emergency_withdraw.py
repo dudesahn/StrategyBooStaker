@@ -4,13 +4,15 @@ from brownie import config
 
 # test passes as of 21-06-26
 def test_emergency_withdraw(
-    gov, token, vault, whale, strategy, chain, strategist_ms, shared_setup, staking
+    gov, token, vault, whale, strategy, chain, strategist_ms, staking
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(1000e18, {"from": whale})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
 
     # simulate a day of waiting
     chain.sleep(86400)
@@ -25,7 +27,9 @@ def test_emergency_withdraw(
 
     strategy.setEmergencyExit({"from": gov})
     strategy.emergencyWithdraw({"from": gov})
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
 
     assert strategy.estimatedTotalAssets() == 0
     assert staking.balanceOf(strategy, token) == 0

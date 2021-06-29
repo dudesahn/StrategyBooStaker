@@ -14,7 +14,6 @@ def test_simple_harvest(
     chain,
     strategist_ms,
     staking,
-    shared_setup,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -23,7 +22,9 @@ def test_simple_harvest(
     newWhale = token.balanceOf(whale)
 
     # harvest, store asset amount
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
     old_assets_dai = vault.totalAssets()
     assert old_assets_dai > 0
     assert token.balanceOf(strategy) == 0
@@ -37,7 +38,9 @@ def test_simple_harvest(
     chain.mine(1)
 
     # harvest after a day, store new asset amount
+    chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(1)
     new_assets_dai = vault.totalAssets()
     # we can't use strategyEstimated Assets because the profits are sent to the vault
     assert new_assets_dai >= old_assets_dai

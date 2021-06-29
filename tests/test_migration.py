@@ -13,10 +13,17 @@ def test_migration(
     strategy,
     chain,
     strategist_ms,
-    shared_setup,
     StrategyUniverseStaking,
     rewardscontract,
 ):
+
+    ## deposit to the vault after approving
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(1000e18, {"from": whale})
+    chain.sleep(1)
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
     # deploy our new strategy
     new_strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardscontract)
     total_old = strategy.estimatedTotalAssets()
