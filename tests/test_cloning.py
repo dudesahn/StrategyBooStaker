@@ -1,6 +1,5 @@
 import brownie
-from brownie import Contract
-from brownie import config
+from brownie import Wei, accounts, Contract, config
 
 # test passes as of 21-06-26
 def test_cloning(
@@ -11,61 +10,63 @@ def test_cloning(
     strategist,
     whale,
     strategy,
+    keeper,
+    rewards,
     chain,
     strategist_ms,
     staking,
     shared_setup,
+    Strategy,
+    rewardscontract
 ):
-    ## clone our strategy for the link vault
-    link_vault = Contract("0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2")
-    link_farming = Contract("0x1f926b0924f64175dB5d10f652628e7849d0185e")
-    link = Contract("0x514910771AF9Ca656af840dff83E8264EcF986CA")
-    newStrategy = strategy.clone(link_vault, dudesahn, dudesahn, dudesahn, link_farming)
-    
-    # attach our new strategy
-    _newStrategy = Contract(newStrategy)
-    link_vault.setManagementFee(0, {"from": gov})
-    link_vault.updateStrategyDebtRatio("0x328C39cD6cFD7DA6E64a5efdEF23CD63892f76A0", 0, {"from": gov})
-    link_vault.addStrategy(_newStrategy, 1500, 0, 2 ** 256 - 1, 1000, {"from": gov})
-    link.approve(link_vault, 2 ** 256 - 1, {"from": whale})
-    link_vault.deposit(1000e18, {"from": whale})
-    newStrategy.harvest({"from": gov})
-    newWhale = link.balanceOf(whale)
 
-    # harvest, store asset amount
+    # Shouldn't be able to call initialize again
+    with brownie.reverts():
+        strategy.initialize(
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            rewardscontract,
+            {"from": gov},
+        )
+    
+    ## clone our strategy
+    tx = strategy.clone(vault, strategist, rewards, keeper, rewardscontract)
+    newStrategy = Strategy.at(tx.return_value)
+    
+    # Shouldn't be able to call initialize again
+    with brownie.reverts():
+        newStrategy.initialize(
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            rewardscontract,
+            {"from": gov},
+        )
+
+    vault.revokeStrategy(strategy, {"from": gov})
+    vault.addStrategy(newStrategy, 1500, 0, 2 ** 256 - 1, 1_000, {"from": gov})
+
+    user_start_balance = token.balanceOf(whale)
+    before_pps = vault.pricePerShare()
+    token.approve(vault.address, 1000e18, {"from": whale})
+    vault.deposit(1000e18, {"from": whale})
+
     newStrategy.harvest({"from": gov})
-    old_assets_dai = link_vault.totalAssets()
-    assert old_assets_dai > 0
-    assert link.balanceOf(strategy) == 0
-    assert newStrategy.estimatedTotalAssets() > 0
-    assert link_farming.balanceOf(strategy, token) > 0
-    print("\nStarting Assets: ", old_assets_dai / 1e18)
-    print("\nAssets Staked: ", link_farming.balanceOf(strategy, token) / 1e18)
 
     # simulate 9 days of earnings
     chain.sleep(86400 * 9)
     chain.mine(1)
 
-    # harvest after a day, store new asset amount
+    # Get profits and withdraw
     newStrategy.harvest({"from": gov})
-    new_assets_dai = link_vault.totalAssets()
-    # we can't use strategyEstimated Assets because the profits are sent to the vault
-    assert new_assets_dai >= old_assets_dai
-    print("\nAssets after 2 days: ", new_assets_dai / 1e18)
-
-    # Display estimated APR based on the two days before the pay out
-    print(
-        "\nEstimated SUSHI APR: ",
-        "{:.2%}".format(
-            ((new_assets_dai - old_assets_dai) * (365 / 9))
-            / (strategy.estimatedTotalAssets())
-        ),
-    )
-
-    # simulate a day of waiting for share price to bump back up
-    chain.sleep(86400)
+    chain.sleep(3600 * 10)
     chain.mine(1)
 
-    # withdraw and confirm we made money
-    link_vault.withdraw({"from": whale})
-    assert link.balanceOf(whale) >= startingWhale
+    vault.withdraw({"from": whale})
+    user_end_balance = token.balanceOf(whale)
+
+    assert vault.pricePerShare() > before_pps
+    assert user_end_balance > user_start_balance

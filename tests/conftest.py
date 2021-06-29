@@ -52,13 +52,11 @@ def strategist_ms(accounts):
 
 @pytest.fixture
 def keeper(accounts):
-    yield accounts[0]
-
+    yield accounts.at("0x8Ef63b525fceF7f8662D98F77f5C9A86ae7dFE09", force=True)
 
 @pytest.fixture
 def rewards(accounts):
-    yield accounts[1]
-
+    yield accounts.at("0x8Ef63b525fceF7f8662D98F77f5C9A86ae7dFE09", force=True)
 
 @pytest.fixture
 def guardian(accounts):
@@ -72,8 +70,7 @@ def management(accounts):
 
 @pytest.fixture
 def strategist(accounts):
-    yield accounts[4]
-
+    yield accounts.at("0x8Ef63b525fceF7f8662D98F77f5C9A86ae7dFE09", force=True)
 
 @pytest.fixture
 def whale(accounts):
