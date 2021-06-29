@@ -62,7 +62,7 @@ contract StrategyUniverseStaking is BaseStrategy {
     address public farmingContract; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
-    uint256 public sellsPerEpoch = 1; // number of sells we divide our claim up into
+    uint256 public sellsPerEpoch; // number of sells we divide our claim up into
 
     address internal constant sushiswapRouter =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
@@ -80,17 +80,104 @@ contract StrategyUniverseStaking is BaseStrategy {
         public
         BaseStrategy(_vault)
     {
-        // You can set these parameters on deployment to whatever you want
+        _initialize(
+            _vault,
+            _farmingContract,
+            msg.sender,
+            msg.sender,
+            msg.sender
+        );
+    }
+
+    /* ========== CLONING ========== */
+
+    /**
+     * @notice
+     *  Initializes the Strategy, this is called only once, when the
+     *  contract is deployed.
+     * @dev `_vault` should implement `VaultAPI`.
+     * @param _vault The address of the Vault responsible for this Strategy.
+     */
+
+    function _initialize(
+        address _vault,
+        address _farmingContract,
+        address _strategist,
+        address _rewards,
+        address _keeper
+    ) internal {
+        require(address(want) == address(0), "Strategy already initialized");
+
+        vault = VaultAPI(_vault);
+        want = IERC20(vault.token());
+        want.safeApprove(_vault, type(uint256).max); // Give Vault unlimited access (might save gas)
+        strategist = _strategist;
+        rewards = _rewards;
+        keeper = _keeper;
+
+        // initialize variables
         minReportDelay = 0;
         maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
+        profitFactor = 400;
         debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
         farmingContract = _farmingContract;
+        sellsPerEpoch = 1;
 
         // want is either SUSHI, AAVE, LINK, SNX, or COMP
         want.safeApprove(address(staking), type(uint256).max);
 
         // add approvals on all tokens
         xyz.safeApprove(sushiswapRouter, type(uint256).max);
+
+        vault.approve(rewards, uint256(-1)); // Allow rewards to be pulled
+    }
+
+    event Cloned(address indexed clone);
+
+    function clone(
+        address _vault,
+        address _farmingContract,
+        address _strategist,
+        address _rewards,
+        address _keeper
+    ) external returns (address newStrategy) {
+        // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
+        bytes20 addressBytes = bytes20(address(this));
+
+        assembly {
+            // EIP-1167 bytecode
+            let clone_code := mload(0x40)
+            mstore(
+                clone_code,
+                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
+            )
+            mstore(add(clone_code, 0x14), addressBytes)
+            mstore(
+                add(clone_code, 0x28),
+                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
+            )
+            newStrategy := create(0, clone_code, 0x37)
+        }
+
+        StrategyUniverseStaking(newStrategy).initialize(
+            _vault,
+            _farmingContract,
+            _strategist,
+            _rewards,
+            _keeper
+        );
+
+        emit Cloned(newStakingPool);
+    }
+
+    function initialize(
+        address _vault,
+        address _farmingContract,
+        address _strategist,
+        address _rewards,
+        address _keeper
+    ) external virtual {
+        _initialize(_vault, _farmingContract, _strategist, _rewards, _keeper);
     }
 
     /* ========== VIEWS ========== */
