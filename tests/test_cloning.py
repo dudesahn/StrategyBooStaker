@@ -20,7 +20,7 @@ def test_cloning(
     link_vault = Contract("0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2")
     link_farming = Contract("0x1f926b0924f64175dB5d10f652628e7849d0185e")
     link = Contract("0x514910771AF9Ca656af840dff83E8264EcF986CA")
-    newStrategy = strategy.clone(link_vault, link_farming, dudesahn, dudesahn, dudesahn)
+    newStrategy = strategy.clone(link_vault, dudesahn, dudesahn, dudesahn, link_farming)
     
     # attach our new strategy
     _newStrategy = Contract(newStrategy)
