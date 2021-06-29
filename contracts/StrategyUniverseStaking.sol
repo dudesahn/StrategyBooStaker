@@ -268,7 +268,8 @@ contract StrategyUniverseStaking is BaseStrategy {
 
             _debtPayment = Math.min(_debtOutstanding, _balanceOfWant());
             if (_debtPayment < _debtOutstanding)
-                _loss = _debtOutstanding.sub(_debtPayment);
+                _loss = _loss.add(_debtOutstanding.sub(_debtPayment));
+            _profit = 0;
         }
     }
 
