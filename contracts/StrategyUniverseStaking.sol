@@ -8,8 +8,7 @@ pragma experimental ABIEncoderV2;
 // These are the core Yearn libraries
 import {
     BaseStrategy,
-    StrategyParams,
-    VaultAPI
+    StrategyParams
 } from "@yearnvaults/contracts/BaseStrategy.sol";
 import {
     SafeERC20,
