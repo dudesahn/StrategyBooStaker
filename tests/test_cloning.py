@@ -3,7 +3,7 @@ from brownie import Contract
 from brownie import config
 
 # test passes as of 21-06-26
-def test_simple_harvest(
+def test_cloning(
     gov,
     token,
     vault,
@@ -20,13 +20,13 @@ def test_simple_harvest(
     link_vault = Contract("0x671a912C10bba0CFA74Cfc2d6Fba9BA1ed9530B2")
     link_farming = Contract("0x1f926b0924f64175dB5d10f652628e7849d0185e")
     link = Contract("0x514910771AF9Ca656af840dff83E8264EcF986CA")
-    _newStrategy = newStrategy.clone(link_vault, link_farming, dudesahn, dudesahn, dudesahn)
-    newStrategy = Contract(_newStrategy)
+    newStrategy = strategy.clone(link_vault, link_farming, dudesahn, dudesahn, dudesahn)
     
     # attach our new strategy
+    _newStrategy = Contract(newStrategy)
     link_vault.setManagementFee(0, {"from": gov})
-    link_vault.updateStrategyDebtRatio("0x328C39cD6cFD7DA6E64a5efdEF23CD63892f76A0", 0)
-    link_vault.addStrategy(strategy, 1500, 0, 2 ** 256 - 1, 1000, {"from": gov})
+    link_vault.updateStrategyDebtRatio("0x328C39cD6cFD7DA6E64a5efdEF23CD63892f76A0", 0, {"from": gov})
+    link_vault.addStrategy(_newStrategy, 1500, 0, 2 ** 256 - 1, 1000, {"from": gov})
     link.approve(link_vault, 2 ** 256 - 1, {"from": whale})
     link_vault.deposit(1000e18, {"from": whale})
     newStrategy.harvest({"from": gov})
