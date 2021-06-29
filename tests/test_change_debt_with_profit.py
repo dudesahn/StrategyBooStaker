@@ -4,15 +4,7 @@ from pytest import approx
 
 # test passes as of 21-06-26
 def test_change_debt_with_profit(
-    gov,
-    token,
-    vault,
-    dudesahn,
-    strategist,
-    whale,
-    strategy,
-    chain,
-    rewardscontract,
+    gov, token, vault, dudesahn, strategist, whale, strategy, chain, rewardscontract,
 ):
 
     ## deposit to the vault after approving

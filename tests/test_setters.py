@@ -4,8 +4,7 @@ from brownie import config
 
 # test passes as of 21-06-26
 def test_setters(
-    gov,
-    strategy,
+    gov, strategy,
 ):
 
     strategy.setSellsPerEpoch(5, {"from": gov})

@@ -4,15 +4,7 @@ from brownie import config
 
 # test passes as of 21-06-26
 def test_triggers(
-    gov,
-    token,
-    vault,
-    dudesahn,
-    strategist,
-    whale,
-    strategy,
-    chain,
-    strategist_ms,
+    gov, token, vault, dudesahn, strategist, whale, strategy, chain, strategist_ms,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)

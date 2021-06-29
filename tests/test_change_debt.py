@@ -4,15 +4,7 @@ from brownie import config
 
 # test passes as of 21-06-26
 def test_change_debt(
-    gov,
-    token,
-    vault,
-    dudesahn,
-    strategist,
-    whale,
-    strategy,
-    chain,
-    rewardscontract,
+    gov, token, vault, dudesahn, strategist, whale, strategy, chain, rewardscontract,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
