@@ -8,7 +8,8 @@ pragma experimental ABIEncoderV2;
 // These are the core Yearn libraries
 import {
     BaseStrategy,
-    StrategyParams
+    StrategyParams,
+    VaultAPI
 } from "@yearnvaults/contracts/BaseStrategy.sol";
 import {
     SafeERC20,
@@ -80,13 +81,19 @@ contract StrategyUniverseStaking is BaseStrategy {
         public
         BaseStrategy(_vault)
     {
-        _initialize(
-            _vault,
-            _farmingContract,
-            msg.sender,
-            msg.sender,
-            msg.sender
-        );
+        // initialize variables
+        minReportDelay = 0;
+        maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
+        profitFactor = 400;
+        debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
+        farmingContract = _farmingContract;
+        sellsPerEpoch = 1;
+
+        // want is either SUSHI, AAVE, LINK, SNX, or COMP
+        want.safeApprove(address(staking), type(uint256).max);
+
+        // add approvals on all tokens
+        xyz.safeApprove(sushiswapRouter, type(uint256).max);
     }
 
     /* ========== CLONING ========== */
@@ -106,11 +113,10 @@ contract StrategyUniverseStaking is BaseStrategy {
         address _rewards,
         address _keeper
     ) internal {
-        require(address(want) == address(0), "Strategy already initialized");
-
         vault = VaultAPI(_vault);
         want = IERC20(vault.token());
         want.safeApprove(_vault, type(uint256).max); // Give Vault unlimited access (might save gas)
+        vault.approve(rewards, uint256(-1)); // Allow rewards to be pulled
         strategist = _strategist;
         rewards = _rewards;
         keeper = _keeper;
@@ -128,8 +134,6 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // add approvals on all tokens
         xyz.safeApprove(sushiswapRouter, type(uint256).max);
-
-        vault.approve(rewards, uint256(-1)); // Allow rewards to be pulled
     }
 
     event Cloned(address indexed clone);
@@ -167,7 +171,7 @@ contract StrategyUniverseStaking is BaseStrategy {
             _keeper
         );
 
-        emit Cloned(newStakingPool);
+        emit Cloned(newStrategy);
     }
 
     function initialize(
