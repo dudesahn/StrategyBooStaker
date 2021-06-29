@@ -19,12 +19,9 @@ def test_remove_from_withdrawal_queue(
     before = strategy.estimatedTotalAssets()
 
     # set emergency and exit, then confirm that the strategy has no funds
-    vault.removeStrategyFromQueue({"from": gov})
+    vault.removeStrategyFromQueue(strategy, {"from": gov})
     after = strategy.estimatedTotalAssets()
     assert before == after
     
-    # this should revert
-    strategy.harvest({"from": gov})
-
-    # this should also revert
-    vault.withdraw({"from": whale})
+    zero = "0x0000000000000000000000000000000000000000"
+    assert vault.withdrawalQueue(0) == zero

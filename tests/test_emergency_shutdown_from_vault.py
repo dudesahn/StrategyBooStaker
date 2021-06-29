@@ -18,7 +18,7 @@ def test_emergency_shutdown_from_vault(
     strategy.harvest({"from": gov})
 
     # set emergency and exit, then confirm that the strategy has no funds
-    vault.setEmergencyShutdown({"from": gov})
+    vault.setEmergencyShutdown(True, {"from": gov})
     strategy.harvest({"from": gov})
     assert strategy.estimatedTotalAssets() == 0
     assert staking.balanceOf(strategy, token) == 0
