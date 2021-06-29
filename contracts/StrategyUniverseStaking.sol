@@ -82,17 +82,10 @@ contract StrategyUniverseStaking is BaseStrategy {
         public
         BaseStrategy(_vault)
     {
-        initializeStrat(_farmingContract);
+        _initializeStrat(_farmingContract);
     }
 
     /* ========== CLONING ========== */
-
-    /**
-     * @notice
-     *  Initializes the Strategy, this is called only once, when the
-     *  contract is deployed.
-     * @param _vault The address of the Vault responsible for this Strategy.
-     */
 
     event Cloned(address indexed clone);
 
