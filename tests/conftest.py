@@ -14,9 +14,11 @@ def token():
     token_address = "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2"
     yield Contract(token_address)
 
+
 @pytest.fixture(scope="module")
 def healthCheck():
-    yield Contract('0xDDCea799fF1699e98EDF118e0629A974Df7DF012')
+    yield Contract("0xDDCea799fF1699e98EDF118e0629A974Df7DF012")
+
 
 @pytest.fixture(scope="module")
 def xyz():
