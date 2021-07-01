@@ -57,21 +57,21 @@ contract StrategyUniverseStaking is BaseStrategy {
 
     /* ========== STATE VARIABLES ========== */
 
-    address internal constant staking =
+    address public constant staking =
         0x2d615795a8bdb804541C69798F13331126BA0c09; // Universe's staking contract
     address public farmingContract; // This is the rewards contract we claim from
 
     uint256 public sellCounter; // track our sells
     uint256 public sellsPerEpoch; // number of sells we divide our claim up into
 
-    address internal constant sushiswapRouter =
+    address public constant sushiswapRouter =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
 
-    IERC20 internal constant xyz =
+    IERC20 public constant xyz =
         IERC20(0x618679dF9EfCd19694BB1daa8D00718Eacfa2883);
-    IERC20 internal constant usdc =
+    IERC20 public constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    IERC20 internal constant weth =
+    IERC20 public constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
     bool internal isOriginal = true;
 
@@ -146,6 +146,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
         farmingContract = _farmingContract;
         sellsPerEpoch = 1;
+        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012); // health.ychad.eth
 
         // want is either SUSHI, AAVE, LINK, SNX, or COMP
         want.safeApprove(address(staking), type(uint256).max);
@@ -230,11 +231,12 @@ contract StrategyUniverseStaking is BaseStrategy {
         // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
         if (_debtOutstanding > 0) {
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (_balanceOfStaked() > 0)
+            if (_balanceOfStaked() > 0) {
                 IStaking(staking).withdraw(
                     address(want),
                     Math.min(_balanceOfStaked(), _debtOutstanding)
                 );
+            }
 
             _debtPayment = Math.min(_debtOutstanding, _balanceOfWant());
             if (_debtPayment < _debtOutstanding) {
@@ -262,11 +264,12 @@ contract StrategyUniverseStaking is BaseStrategy {
         uint256 wantBal = _balanceOfWant();
         if (_amountNeeded > wantBal) {
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (_balanceOfStaked() > 0)
+            if (_balanceOfStaked() > 0) {
                 IStaking(staking).withdraw(
                     address(want),
                     Math.min(_balanceOfStaked(), _amountNeeded - wantBal)
                 );
+            }
 
             uint256 withdrawnBal = _balanceOfWant();
             _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
@@ -284,8 +287,9 @@ contract StrategyUniverseStaking is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        if (_balanceOfStaked() > 0)
+        if (_balanceOfStaked() > 0) {
             IStaking(staking).withdraw(address(want), _balanceOfStaked());
+        }
         return _balanceOfWant();
     }
 
@@ -295,8 +299,9 @@ contract StrategyUniverseStaking is BaseStrategy {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        if (_balanceOfStaked() > 0)
+        if (_balanceOfStaked() > 0) {
             IStaking(staking).withdraw(address(want), _balanceOfStaked());
+        }
 
         // send our claimed xyz to the new strategy
         xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
@@ -349,8 +354,9 @@ contract StrategyUniverseStaking is BaseStrategy {
 
         // Trigger if it's been long enough since our last harvest based on our DCA schedule. each epoch is 1 week.
         uint256 week = 86400 * 7;
-        if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch))
+        if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch)) {
             return true;
+        }
     }
 
     function ethToWant(uint256 _amtInWei)
