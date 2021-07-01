@@ -14,6 +14,7 @@ def test_simple_harvest(
     chain,
     strategist_ms,
     staking,
+    
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -46,11 +47,11 @@ def test_simple_harvest(
     assert new_assets_dai >= old_assets_dai
     print("\nAssets after 2 days: ", new_assets_dai / 1e18)
 
-    # Display estimated APR based on the two days before the pay out
+    # Display estimated APR
     print(
         "\nEstimated SUSHI APR: ",
         "{:.2%}".format(
-            ((new_assets_dai - old_assets_dai) * (365 / 9))
+            ((new_assets_dai - old_assets_dai) * (365 / 7))
             / (strategy.estimatedTotalAssets())
         ),
     )

@@ -14,8 +14,8 @@ def test_change_debt_with_profit(
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate seven days of earnings to make sure we hit at least one epoch of rewards
+    chain.sleep(86400 * 7)
     chain.mine(1)
 
     chain.sleep(1)
@@ -28,10 +28,10 @@ def test_change_debt_with_profit(
 
     currentDebt = vault.strategies(strategy)[2]
     vault.updateStrategyDebtRatio(strategy, currentDebt / 2, {"from": gov})
-    token.transfer(strategy, 10000e18, {"from": whale})
+    token.transfer(strategy, 10e18, {"from": whale})
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate seven days of earnings to make sure we hit at least one epoch of rewards
+    chain.sleep(86400 * 7)
     chain.mine(1)
 
     chain.sleep(1)
@@ -42,7 +42,7 @@ def test_change_debt_with_profit(
     new_params = vault.strategies(strategy).dict()
 
     assert new_params["totalGain"] > prev_params["totalGain"]
-    assert new_params["totalGain"] - prev_params["totalGain"] > Wei("1_000 ether")
+    assert new_params["totalGain"] - prev_params["totalGain"] > Wei("10 ether")
     assert new_params["debtRatio"] == currentDebt / 2
     assert new_params["totalLoss"] == prev_params["totalLoss"]
     assert (

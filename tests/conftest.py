@@ -14,6 +14,9 @@ def token():
     token_address = "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2"
     yield Contract(token_address)
 
+@pytest.fixture(scope="module")
+def healthCheck():
+    yield Contract('0xDDCea799fF1699e98EDF118e0629A974Df7DF012')
 
 @pytest.fixture(scope="module")
 def xyz():
@@ -103,6 +106,7 @@ def strategy(
     whale,
     token,
     chain,
+    healthCheck,
 ):
     # parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed),
     strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardscontract)
@@ -110,5 +114,7 @@ def strategy(
     vault.setManagementFee(0, {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     strategy.setStrategist(strategist, {"from": gov})
+    strategy.setHealthCheck(healthCheck, {"from": gov})
+    strategy.setDoHealthCheck(True, {"from": gov})
     chain.sleep(1)
     yield strategy
