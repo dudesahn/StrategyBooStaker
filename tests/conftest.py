@@ -36,10 +36,11 @@ def staking():
 
 
 # Define any accounts in this section
+
+# for live testing, governance is the strategist MS; we will update this before we endorse
 @pytest.fixture(scope="module")
 def gov(accounts):
-    # yearn multis... I mean YFI governance. I swear!
-    yield accounts.at("0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52", force=True)
+    yield accounts.at("0x16388463d60FFE0661Cf7F1f31a7D658aC790ff7", force=True)
 
 
 @pytest.fixture(scope="module")
@@ -87,12 +88,7 @@ def whale(accounts):
 
 @pytest.fixture(scope="function")
 def vault(pm, gov, rewards, guardian, management, token, chain):
-    Vault = pm(config["dependencies"][0]).Vault
-    vault = guardian.deploy(Vault)
-    vault.initialize(token, gov, rewards, "", "", guardian)
-    vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
-    vault.setManagement(management, {"from": gov})
-    chain.sleep(1)
+    vault = Contract("0x497590d2d57f05cf8B42A36062fA53eBAe283498")
     yield vault
 
 
@@ -111,12 +107,5 @@ def strategy(
     healthCheck,
 ):
     # parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed),
-    strategy = guardian.deploy(StrategyUniverseStaking, vault, rewardscontract)
-    strategy.setKeeper(keeper, {"from": gov})
-    vault.setManagementFee(0, {"from": gov})
-    vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
-    strategy.setStrategist(strategist, {"from": gov})
-    strategy.setHealthCheck(healthCheck, {"from": gov})
-    strategy.setDoHealthCheck(True, {"from": gov})
-    chain.sleep(1)
+    strategy = Contract("0xC1810aa7F733269C39D640f240555d0A4ebF4264")
     yield strategy
