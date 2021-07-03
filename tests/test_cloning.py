@@ -26,7 +26,7 @@ def test_cloning(
         )
 
     ## clone our strategy
-    tx = strategy.clone(vault, strategist, rewards, keeper, rewardscontract)
+    tx = strategy.clone(vault, strategist, rewards, keeper, rewardscontract, {"from": gov})
     newStrategy = StrategyUniverseStaking.at(tx.return_value)
 
     # Shouldn't be able to call initialize again
