@@ -253,7 +253,9 @@ contract StrategyUniverseStaking is BaseStrategy {
         // send all of our want tokens to be deposited
         uint256 _toInvest = _balanceOfWant();
         // stake only if we have something to stake
-        if (_toInvest > 0) IStaking(staking).deposit(address(want), _toInvest);
+        if (_toInvest > 0) {
+            IStaking(staking).deposit(address(want), _toInvest);
+        }
     }
 
     function liquidatePosition(uint256 _amountNeeded)
