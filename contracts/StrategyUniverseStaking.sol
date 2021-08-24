@@ -73,6 +73,8 @@ contract StrategyUniverseStaking is BaseStrategy {
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 public constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    bool internal keeperHarvestNow = false; // only set this to true when we want to trigger our keepers to harvest for us
+    string internal stratName; // we use this to be able to adjust our strategy's name
     bool internal isOriginal = true;
 
     /* ========== CONSTRUCTOR ========== */
@@ -158,20 +160,20 @@ contract StrategyUniverseStaking is BaseStrategy {
     /* ========== VIEWS ========== */
 
     function name() external view override returns (string memory) {
-        return "StrategyUniverseStaking";
+        return stratName;
     }
 
-    function _balanceOfWant() internal view returns (uint256) {
+    function balanceOfWant() public view returns (uint256) {
         return want.balanceOf(address(this));
     }
 
-    function _balanceOfStaked() internal view returns (uint256) {
+    function balanceOfStaked() public view returns (uint256) {
         return IStaking(staking).balanceOf(address(this), address(want));
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
         // look at our staked tokens and any free tokens sitting in the strategy
-        return _balanceOfStaked().add(_balanceOfWant());
+        return balanceOfStaked().add(balanceOfWant());
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -216,34 +218,39 @@ contract StrategyUniverseStaking is BaseStrategy {
             }
         }
 
+        // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
+        if (_debtOutstanding > 0) {
+            // add in a check for > 0 as withdraw reverts with 0 amount
+            if (balanceOfStaked() > 0) {
+                IStaking(staking).withdraw(
+                    address(want),
+                    Math.min(balanceOfStaked(), _debtOutstanding)
+                );
+            }
+            uint256 _withdrawnBal = balanceOfWant();
+            _debtPayment = Math.min(_debtOutstanding, _withdrawnBal);
+        }
+
         // serious loss should never happen, but if it does (for instance, if Curve is hacked), let's record it accurately
         uint256 assets = estimatedTotalAssets();
         uint256 debt = vault.strategies(address(this)).totalDebt;
 
-        // if assets are greater than debt, things are working great! loss will be 0 by default
+        // if assets are greater than debt, things are working great!
         if (assets > debt) {
-            _profit = _balanceOfWant();
-        } else {
-            // if assets are less than debt, we are in trouble. profit will be 0 by default
+            _profit = assets.sub(debt);
+            uint256 _wantBal = balanceOfWant();
+            if (_profit.add(_debtPayment) > _wantBal) {
+                // this should only be hit following donations to strategy
+                liquidateAllPositions();
+            }
+        }
+        // if assets are less than debt, we are in trouble
+        else {
             _loss = debt.sub(assets);
         }
 
-        // debtOustanding will only be > 0 in the event of revoking or lowering debtRatio of a strategy
-        if (_debtOutstanding > 0) {
-            // add in a check for > 0 as withdraw reverts with 0 amount
-            if (_balanceOfStaked() > 0) {
-                IStaking(staking).withdraw(
-                    address(want),
-                    Math.min(_balanceOfStaked(), _debtOutstanding)
-                );
-            }
-
-            _debtPayment = Math.min(_debtOutstanding, _balanceOfWant());
-            if (_debtPayment < _debtOutstanding) {
-                _loss = _loss.add(_debtOutstanding.sub(_debtPayment));
-                _profit = 0;
-            }
-        }
+        // we're done harvesting, so reset our trigger if we used it
+        if (keeperHarvestNow) keeperHarvestNow = false;
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
@@ -251,7 +258,7 @@ contract StrategyUniverseStaking is BaseStrategy {
             return;
         }
         // send all of our want tokens to be deposited
-        uint256 _toInvest = _balanceOfWant();
+        uint256 _toInvest = balanceOfWant();
         // stake only if we have something to stake
         if (_toInvest > 0) {
             IStaking(staking).deposit(address(want), _toInvest);
@@ -263,18 +270,19 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        uint256 wantBal = _balanceOfWant();
-        if (_amountNeeded > wantBal) {
+        uint256 _wantBal = balanceOfWant();
+        if (_amountNeeded > _wantBal) {
+            uint256 _stakedBal = balanceOfStaked();
             // add in a check for > 0 as withdraw reverts with 0 amount
-            if (_balanceOfStaked() > 0) {
+            if (_stakedBal > 0) {
                 IStaking(staking).withdraw(
                     address(want),
-                    Math.min(_balanceOfStaked(), _amountNeeded - wantBal)
+                    Math.min(_stakedBal, _amountNeeded.sub(wantBal))
                 );
             }
 
-            uint256 withdrawnBal = _balanceOfWant();
-            _liquidatedAmount = Math.min(_amountNeeded, withdrawnBal);
+            uint256 _withdrawnBal = balanceOfWant();
+            _liquidatedAmount = Math.min(_amountNeeded, _withdrawnBal);
             _loss = _amountNeeded.sub(_liquidatedAmount);
         } else {
             // we have enough balance to cover the liquidation available
@@ -283,10 +291,11 @@ contract StrategyUniverseStaking is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        if (_balanceOfStaked() > 0) {
-            IStaking(staking).withdraw(address(want), _balanceOfStaked());
+        uint256 _stakedBal = balanceOfStaked();
+        if (_stakedBal > 0) {
+            IStaking(staking).withdraw(address(want), _stakedBal);
         }
-        return _balanceOfWant();
+        return balanceOfWant();
     }
 
     // only do this if absolutely necessary; as rewards won't be claimed, and this also must be 10 weeks after our last withdrawal. this will revert if we don't have anything to withdraw.
@@ -295,8 +304,9 @@ contract StrategyUniverseStaking is BaseStrategy {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        if (_balanceOfStaked() > 0) {
-            IStaking(staking).withdraw(address(want), _balanceOfStaked());
+        uint256 _stakedBal = balanceOfStaked();
+        if (_stakedBal > 0) {
+            IStaking(staking).withdraw(address(want), _stakedBal);
         }
 
         // send our claimed xyz to the new strategy
@@ -309,8 +319,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (address[] memory)
     {
-        address[] memory protected = new address[](1);
-        protected[0] = address(xyz);
+        address[] memory protected = new address[](0);
 
         return protected;
     }
@@ -322,37 +331,13 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (bool)
     {
-        StrategyParams memory params = vault.strategies(address(this));
+        // trigger if we want to manually harvest
+        if (keeperHarvestNow) return true;
 
-        // Should not trigger if Strategy is not activated
-        if (params.activation == 0) return false;
+        // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
+        if (!isActive()) return false;
 
-        // Should not trigger if we haven't waited long enough since previous harvest
-        if (block.timestamp.sub(params.lastReport) < minReportDelay)
-            return false;
-
-        // Should trigger if hasn't been called in a while
-        if (block.timestamp.sub(params.lastReport) >= maxReportDelay)
-            return true;
-
-        // If some amount is owed, pay it back
-        // NOTE: Since debt is based on deposits, it makes sense to guard against large
-        //       changes to the value from triggering a harvest directly through user
-        //       behavior. This should ensure reasonable resistance to manipulation
-        //       from user-initiated withdrawals as the outstanding debt fluctuates.
-        uint256 outstanding = vault.debtOutstanding();
-        if (outstanding > debtThreshold) return true;
-
-        // Check for profits and losses
-        uint256 total = estimatedTotalAssets();
-        // Trigger if we have a loss to report
-        if (total.add(debtThreshold) < params.totalDebt) return true;
-
-        // Trigger if it's been long enough since our last harvest based on our DCA schedule. each epoch is 1 week.
-        uint256 week = 86400 * 7;
-        if (block.timestamp.sub(params.lastReport) > week.div(sellsPerEpoch)) {
-            return true;
-        }
+        return super.harvestTrigger(callCostinEth);
     }
 
     function ethToWant(uint256 _amtInWei)
@@ -390,5 +375,15 @@ contract StrategyUniverseStaking is BaseStrategy {
         sellsPerEpoch = _sellsPerEpoch;
         // reset our counter to be safe
         sellCounter = 0;
+    }
+
+    // This allows us to change the name of a strategy
+    function setName(string calldata _stratName) external onlyAuthorized {
+        stratName = _stratName;
+    }
+
+    // This allows us to manually harvest with our keeper as needed
+    function setManualHarvest(bool _keeperHarvestNow) external onlyAuthorized {
+        keeperHarvestNow = _keeperHarvestNow;
     }
 }
