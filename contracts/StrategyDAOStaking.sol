@@ -301,7 +301,7 @@ contract StrategyDAOStaking is BaseStrategy {
         }
 
         // we're done harvesting, so reset our trigger if we used it
-        if (keeperHarvestNow) keeperHarvestNow = false;
+        keeperHarvestNow = false;
     }
 
     // sell from want to USDC via sushi, USDC -> WETH via Uni, WETH -> want via Uni
@@ -448,11 +448,7 @@ contract StrategyDAOStaking is BaseStrategy {
         view
         override
         returns (address[] memory)
-    {
-        address[] memory protected = new address[](0);
-
-        return protected;
-    }
+    {}
 
     // our main trigger is regarding our DCA since there is low liquidity for our emissionToken
     function harvestTrigger(uint256 callCostinEth)

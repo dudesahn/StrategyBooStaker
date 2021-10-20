@@ -63,6 +63,13 @@ def test_triggers(
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
 
+    # should trigger true if we manually set it
+    strategy.setManualHarvest(True, {"from": gov})
+    tx = strategy.harvestTrigger(0, {"from": gov})
+    print("\nShould we harvest? Should be true.", tx)
+    assert tx == True
+
+
 def test_less_useful_triggers(
     gov,
     token,

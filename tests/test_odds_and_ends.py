@@ -212,7 +212,7 @@ def test_odds_and_ends_migration(
 
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
-    
+
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
     chain.mine(1)
@@ -419,10 +419,6 @@ def test_odds_and_ends_inactive_strat(
     ## deposit to the vault after approving
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
     vault.deposit(amount, {"from": whale})
-    chain.sleep(1)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
@@ -430,9 +426,6 @@ def test_odds_and_ends_inactive_strat(
     vault.updateStrategyDebtRatio(strategy, 0, {"from": gov})
     # sleep for an hour
     chain.sleep(3600)
-    strategy.tend({"from": gov})
-    chain.mine(1)
-    chain.sleep(361)
     strategy.harvest({"from": gov})
 
     # we shouldn't harvest empty strategies
@@ -442,50 +435,46 @@ def test_odds_and_ends_inactive_strat(
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
 
-# # this one tests if we don't have any CRV to send to voter or any left over after sending
-# def test_odds_and_ends_weird_amounts(
-#     gov,
-#     token,
-#     vault,
-#     strategist,
-#     whale,
-#     strategy,
-#     chain,
-#     strategist_ms,
-#     amount,
-#     dummy_gas_oracle,
-# ):
-# 
-#     ## deposit to the vault after approving
-#     token.approve(vault, 2 ** 256 - 1, {"from": whale})
-#     vault.deposit(amount, {"from": whale})
-#     chain.sleep(1)
-#     strategy.tend({"from": gov})
-#     chain.mine(1)
-#     chain.sleep(361)
-#     strategy.harvest({"from": gov})
-#     chain.sleep(1)
-# 
-#     # sleep for an hour to get some profit
-#     chain.sleep(3600)
-#     chain.mine(1)
-# 
-#     # take 100% of our CRV to the voter
-#     strategy.setKeepCRV(10000, {"from": gov})
-#     strategy.tend({"from": gov})
-#     chain.mine(1)
-#     chain.sleep(361)
-#     strategy.harvest({"from": gov})
-#     chain.sleep(1)
-# 
-#     # sleep for an hour to get some profit
-#     chain.sleep(3600)
-#     chain.mine(1)
-# 
-#     # take 0% of our CRV to the voter
-#     strategy.setKeepCRV(0, {"from": gov})
-#     strategy.tend({"from": gov})
-#     chain.mine(1)
-#     chain.sleep(361)
-#     strategy.harvest({"from": gov})
-#     chain.sleep(1)
+
+# this one does multiple sells per epoch
+def test_odds_and_ends_multiple_sells(
+    gov,
+    token,
+    vault,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    strategist_ms,
+    amount,
+    dummy_gas_oracle,
+):
+    # set number of sells per epoch
+    strategy.setSellsPerEpoch(2, {"from": gov})
+
+    ## deposit to the vault after approving
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+    chain.sleep(1)
+
+    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
+    chain.sleep(86400 * 9)
+    chain.mine(1)
+
+    # harvest once
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # harvest twice
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # harvest thrice
+    strategy.harvest({"from": gov})
+    chain.sleep(1)
+
+    # harvest four times
+    strategy.harvest({"from": gov})
+    chain.sleep(1)

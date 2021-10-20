@@ -106,6 +106,7 @@ def healthCheck():
 def other_vault_strategy():
     yield Contract("0x8423590CD0343c4E18d35aA780DF50a5751bebae")
 
+
 # @pytest.fixture(scope="function")
 # def vault(pm, gov, rewards, guardian, management, token, chain):
 #     vault = Contract("0x497590d2d57f05cf8B42A36062fA53eBAe283498")

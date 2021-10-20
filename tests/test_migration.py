@@ -29,7 +29,14 @@ def test_migration(
     chain.sleep(1)
 
     # deploy our new strategy
-    new_strategy = guardian.deploy(StrategyDAOStaking, vault, rewardscontract, emissionToken, staking, strategy_name)
+    new_strategy = guardian.deploy(
+        StrategyDAOStaking,
+        vault,
+        rewardscontract,
+        emissionToken,
+        staking,
+        strategy_name,
+    )
     total_old = strategy.estimatedTotalAssets()
 
     # migrate our old strategy

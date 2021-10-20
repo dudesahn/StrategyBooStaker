@@ -24,12 +24,6 @@ def test_emergency_shutdown_from_vault(
     # simulate nine days of earnings to hit at least one epoch
     chain.sleep(86400 * 9)
 
-    chain.mine(1)
-    strategy.harvest({"from": gov})
-
-    # simulate nine days of earnings to hit at least one epoch
-    chain.sleep(86400 * 9)
-
     # set emergency and exit, then confirm that the strategy has no funds
     vault.setEmergencyShutdown(True, {"from": gov})
     chain.sleep(1)
