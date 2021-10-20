@@ -18,6 +18,25 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
+interface IBaseFee {
+    function basefee_global() external view returns (uint256);
+}
+
+interface IUniV3 {
+    struct ExactInputParams {
+        bytes path;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+    }
+
+    function exactInput(ExactInputParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
+}
+
 interface IUniswapV2Router02 {
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -50,40 +69,49 @@ interface IFarming {
     function massHarvest() external returns (uint256); // this is claiming our rewards
 }
 
-contract StrategyUniverseStaking is BaseStrategy {
+contract StrategyDAOStaking is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
 
     /* ========== STATE VARIABLES ========== */
 
-    address public constant staking =
-        0x2d615795a8bdb804541C69798F13331126BA0c09; // Universe's staking contract
+    address public staking; // DAO staking contract
     address public farmingContract; // This is the rewards contract we claim from
+    IERC20 public emissionToken; // this is the token we receive from staking
 
     uint256 public sellCounter; // track our sells
     uint256 public sellsPerEpoch; // number of sells we divide our claim up into
 
+    // swap stuff
+    address public constant uniswapv3 =
+        0xE592427A0AEce92De3Edee1F18E0157C05861564;
     address public constant sushiswapRouter =
         0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F;
+    bool public sellOnSushi; // determine if we sell partially on sushi or all on Uni v3
+    uint24 public uniWantFee; // this is equal to 0.3%, can change this later if a different path becomes more optimal
+    uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends in gwei
+    IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
 
-    IERC20 public constant xyz =
-        IERC20(0x618679dF9EfCd19694BB1daa8D00718Eacfa2883);
     IERC20 public constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     IERC20 public constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+
     bool internal keeperHarvestNow = false; // only set this to true when we want to trigger our keepers to harvest for us
     string internal stratName; // we use this to be able to adjust our strategy's name
     bool internal isOriginal = true;
 
     /* ========== CONSTRUCTOR ========== */
 
-    constructor(address _vault, address _farmingContract)
-        public
-        BaseStrategy(_vault)
-    {
-        _initializeStrat(_farmingContract);
+    constructor(
+        address _vault,
+        address _farmingContract,
+        address _emissionToken,
+        address _staking,
+        string memory _name
+    ) public BaseStrategy(_vault) {
+        _initializeStrat(_farmingContract, _emissionToken, _staking, _name);
     }
 
     /* ========== CLONING ========== */
@@ -91,12 +119,15 @@ contract StrategyUniverseStaking is BaseStrategy {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function clone(
+    function cloneDAOStrategy(
         address _vault,
         address _strategist,
         address _rewards,
         address _keeper,
-        address _farmingContract
+        address _farmingContract,
+        address _emissionToken,
+        address _staking,
+        string memory _name
     ) external returns (address newStrategy) {
         require(isOriginal);
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
@@ -116,12 +147,15 @@ contract StrategyUniverseStaking is BaseStrategy {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyUniverseStaking(newStrategy).initialize(
+        StrategyDAOStaking(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
             _keeper,
-            _farmingContract
+            _farmingContract,
+            _emissionToken,
+            _staking,
+            _name
         );
 
         emit Cloned(newStrategy);
@@ -133,28 +167,52 @@ contract StrategyUniverseStaking is BaseStrategy {
         address _strategist,
         address _rewards,
         address _keeper,
-        address _farmingContract
+        address _farmingContract,
+        address _emissionToken,
+        address _staking,
+        string memory _name
     ) public {
         _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_farmingContract);
+        _initializeStrat(_farmingContract, _emissionToken, _staking, _name);
     }
 
     // this is called by our original strategy, as well as any clones
-    function _initializeStrat(address _farmingContract) internal {
+    function _initializeStrat(
+        address _farmingContract,
+        address _emissionToken,
+        address _staking,
+        string memory _name
+    ) internal {
         // initialize variables
         minReportDelay = 0;
         maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
-        profitFactor = 400;
+        profitFactor = 1_000_000;
         debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
         farmingContract = _farmingContract;
         sellsPerEpoch = 1;
         healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012); // health.ychad.eth
+        emissionToken = IERC20(_emissionToken);
+        staking = _staking;
 
-        // want is either SUSHI, AAVE, LINK, SNX, or COMP
-        want.safeApprove(address(staking), type(uint256).max);
+        // set our strategy's name
+        stratName = _name;
+
+        // start off using sushi
+        sellOnSushi = true;
+
+        // set our swap fee for univ3
+        uniWantFee = 3000;
+
+        // want is what we stake for emissions
+        want.approve(address(staking), type(uint256).max);
 
         // add approvals on all tokens
-        xyz.safeApprove(sushiswapRouter, type(uint256).max);
+        emissionToken.approve(sushiswapRouter, type(uint256).max);
+        weth.approve(sushiswapRouter, type(uint256).max);
+        usdc.approve(uniswapv3, type(uint256).max);
+
+        // set our max gas price
+        maxGasPrice = 100 * 1e9;
     }
 
     /* ========== VIEWS ========== */
@@ -190,29 +248,22 @@ contract StrategyUniverseStaking is BaseStrategy {
         // claim our rewards
         if (sellCounter == 0) IFarming(farmingContract).massHarvest();
 
-        // if we have xyz to sell, then sell some of it
-        uint256 _xyzBalance = xyz.balanceOf(address(this));
-        if (_xyzBalance > 0) {
+        // if we have emissionToken to sell, then sell some of it
+        uint256 _emissionTokenBalance = emissionToken.balanceOf(address(this));
+        if (_emissionTokenBalance > 0) {
             // sell some fraction of our rewards to avoid hitting too much slippage
-            uint256 _toSell = _xyzBalance.div(sellsPerEpoch.sub(sellCounter));
+            uint256 _toSell =
+                _emissionTokenBalance.div(sellsPerEpoch.sub(sellCounter));
 
-            // sell our XYZ
+            // sell our emissionToken
             if (_toSell > 0) {
-                // xyz token path
-                address[] memory xyzPath = new address[](4);
-                xyzPath[0] = address(xyz);
-                xyzPath[1] = address(usdc);
-                xyzPath[2] = address(weth);
-                xyzPath[3] = address(want);
+                if (sellOnSushi) {
+                    // well sell mostly on Sushi
+                    _sellMostlyOnSushi(_toSell);
+                } else {
+                    _sellMostlyOnUni(_toSell);
+                }
 
-                // sell it
-                IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
-                    _toSell,
-                    uint256(0),
-                    xyzPath,
-                    address(this),
-                    now
-                );
                 sellCounter = sellCounter.add(1);
                 if (sellCounter == sellsPerEpoch) sellCounter = 0;
             }
@@ -253,6 +304,82 @@ contract StrategyUniverseStaking is BaseStrategy {
         if (keeperHarvestNow) keeperHarvestNow = false;
     }
 
+    // sell from want to USDC via sushi, USDC -> WETH via Uni, WETH -> want via Uni
+    function _sellMostlyOnUni(uint256 _amount) internal {
+        // sell our emission token for USDC on sushi
+        address[] memory emissionTokenPath = new address[](2);
+        emissionTokenPath[0] = address(emissionToken);
+        emissionTokenPath[1] = address(usdc);
+
+        IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
+            _amount,
+            uint256(0),
+            emissionTokenPath,
+            address(this),
+            block.timestamp
+        );
+
+        // sell our USDC for want through WETH on Uni
+        uint256 _usdcBalance = usdc.balanceOf(address(this));
+        IUniV3(uniswapv3).exactInput(
+            IUniV3.ExactInputParams(
+                abi.encodePacked(
+                    address(usdc),
+                    uint24(500),
+                    address(weth),
+                    uint24(uniWantFee),
+                    address(want)
+                ),
+                address(this),
+                block.timestamp,
+                _usdcBalance,
+                uint256(1)
+            )
+        );
+    }
+
+    // sell from want to USDC via sushi, USDC -> WETH via Uni, WETH -> want via Sushi
+    function _sellMostlyOnSushi(uint256 _amount) internal {
+        // sell our emission token for USDC on sushi
+        address[] memory emissionTokenPath = new address[](2);
+        emissionTokenPath[0] = address(emissionToken);
+        emissionTokenPath[1] = address(usdc);
+
+        IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
+            _amount,
+            uint256(0),
+            emissionTokenPath,
+            address(this),
+            block.timestamp
+        );
+
+        // sell our usdc for weth on uni
+        uint256 _usdcBalance = usdc.balanceOf(address(this));
+        IUniV3(uniswapv3).exactInput(
+            IUniV3.ExactInputParams(
+                abi.encodePacked(address(usdc), uint24(500), address(weth)),
+                address(this),
+                block.timestamp,
+                _usdcBalance,
+                uint256(1)
+            )
+        );
+
+        // sell our weth for want on sushi
+        uint256 _wethBalance = weth.balanceOf(address(this));
+        address[] memory wantTokenPath = new address[](2);
+        wantTokenPath[0] = address(weth);
+        wantTokenPath[1] = address(want);
+
+        IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
+            _wethBalance,
+            uint256(0),
+            wantTokenPath,
+            address(this),
+            block.timestamp
+        );
+    }
+
     function adjustPosition(uint256 _debtOutstanding) internal override {
         if (emergencyExit) {
             return;
@@ -277,7 +404,7 @@ contract StrategyUniverseStaking is BaseStrategy {
             if (_stakedBal > 0) {
                 IStaking(staking).withdraw(
                     address(want),
-                    Math.min(_stakedBal, _amountNeeded.sub(wantBal))
+                    Math.min(_stakedBal, _amountNeeded.sub(_wantBal))
                 );
             }
 
@@ -309,8 +436,11 @@ contract StrategyUniverseStaking is BaseStrategy {
             IStaking(staking).withdraw(address(want), _stakedBal);
         }
 
-        // send our claimed xyz to the new strategy
-        xyz.safeTransfer(_newStrategy, xyz.balanceOf(address(this)));
+        // send our claimed emissionToken to the new strategy
+        emissionToken.safeTransfer(
+            _newStrategy,
+            emissionToken.balanceOf(address(this))
+        );
     }
 
     function protectedTokens()
@@ -324,7 +454,7 @@ contract StrategyUniverseStaking is BaseStrategy {
         return protected;
     }
 
-    // our main trigger is regarding our DCA since there is low liquidity for $XYZ
+    // our main trigger is regarding our DCA since there is low liquidity for our emissionToken
     function harvestTrigger(uint256 callCostinEth)
         public
         view
@@ -337,6 +467,11 @@ contract StrategyUniverseStaking is BaseStrategy {
         // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
         if (!isActive()) return false;
 
+        // check if the base fee gas price is higher than we allow
+        if (readBaseFee() > maxGasPrice) {
+            return false;
+        }
+
         return super.harvestTrigger(callCostinEth);
     }
 
@@ -346,24 +481,31 @@ contract StrategyUniverseStaking is BaseStrategy {
         override
         returns (uint256)
     {
-        address[] memory ethPath = new address[](2);
-        ethPath[0] = address(weth);
-        ethPath[1] = address(want);
+        uint256 _ethToWant;
+        if (_amtInWei > 0) {
+            address[] memory ethPath = new address[](2);
+            ethPath[0] = address(weth);
+            ethPath[1] = address(want);
 
-        uint256[] memory callCostInWant =
-            IUniswapV2Router02(sushiswapRouter).getAmountsOut(
-                _amtInWei,
-                ethPath
-            );
+            uint256[] memory callCostInWant =
+                IUniswapV2Router02(sushiswapRouter).getAmountsOut(
+                    _amtInWei,
+                    ethPath
+                );
 
-        uint256 _ethToWant = callCostInWant[callCostInWant.length - 1];
-
+            _ethToWant = callCostInWant[callCostInWant.length - 1];
+        }
         return _ethToWant;
+    }
+
+    function readBaseFee() internal view returns (uint256 baseFee) {
+        // IBaseFee _baseFeeOracle = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549); ******* UNCOMMENT THIS AFTER TESTING *******
+        return _baseFeeOracle.basefee_global();
     }
 
     /* ========== SETTERS ========== */
 
-    // set number of batches we sell our claimed XYZ in
+    // set number of batches we sell our claimed emissionToken in
     function setSellsPerEpoch(uint256 _sellsPerEpoch)
         external
         onlyEmergencyAuthorized
@@ -377,13 +519,28 @@ contract StrategyUniverseStaking is BaseStrategy {
         sellCounter = 0;
     }
 
-    // This allows us to change the name of a strategy
-    function setName(string calldata _stratName) external onlyAuthorized {
-        stratName = _stratName;
+    // set the maximum gas price we want to pay for a harvest/tend in gwei
+    function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
+        maxGasPrice = _maxGasPrice.mul(1e9);
+    }
+
+    // set the fee pool we'd like to swap through for if we're swapping from ETH to want on UniV3
+    function setUniWantFee(uint24 _fee) external onlyAuthorized {
+        uniWantFee = _fee;
     }
 
     // This allows us to manually harvest with our keeper as needed
     function setManualHarvest(bool _keeperHarvestNow) external onlyAuthorized {
         keeperHarvestNow = _keeperHarvestNow;
+    }
+
+    // set if we want to sell our swap partly on sushi or just uniV3
+    function setSellOnSushi(bool _sellOnSushi) external onlyAuthorized {
+        sellOnSushi = _sellOnSushi;
+    }
+
+    // set the maximum gas price we want to pay for a harvest/tend in gwei, ******* REMOVE THIS AFTER TESTING *******
+    function setGasOracle(address _gasOracle) external onlyAuthorized {
+        _baseFeeOracle = IBaseFee(_gasOracle);
     }
 }
