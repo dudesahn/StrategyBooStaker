@@ -98,7 +98,6 @@ contract StrategyDAOStaking is BaseStrategy {
     IERC20 public constant weth =
         IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
-    bool internal keeperHarvestNow = false; // only set this to true when we want to trigger our keepers to harvest for us
     string internal stratName; // we use this to be able to adjust our strategy's name
     bool internal isOriginal = true;
 
@@ -187,7 +186,7 @@ contract StrategyDAOStaking is BaseStrategy {
         minReportDelay = 0;
         maxReportDelay = 604800; // 7 days in seconds, if we hit this then harvestTrigger = True
         profitFactor = 1_000_000;
-        debtThreshold = 4000 * 1e18; // we shouldn't ever have debt, but set a bit of a buffer
+        debtThreshold = 1e18; // we shouldn't ever have debt, but set a bit of a buffer
         farmingContract = _farmingContract;
         sellsPerEpoch = 1;
         healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012); // health.ychad.eth
@@ -299,9 +298,6 @@ contract StrategyDAOStaking is BaseStrategy {
         else {
             _loss = debt.sub(assets);
         }
-
-        // we're done harvesting, so reset our trigger if we used it
-        keeperHarvestNow = false;
     }
 
     // sell from want to USDC via sushi, USDC -> WETH via Uni, WETH -> want via Uni
@@ -457,9 +453,6 @@ contract StrategyDAOStaking is BaseStrategy {
         override
         returns (bool)
     {
-        // trigger if we want to manually harvest
-        if (keeperHarvestNow) return true;
-
         // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
         if (!isActive()) return false;
 
@@ -523,11 +516,6 @@ contract StrategyDAOStaking is BaseStrategy {
     // set the fee pool we'd like to swap through for if we're swapping from ETH to want on UniV3
     function setUniWantFee(uint24 _fee) external onlyAuthorized {
         uniWantFee = _fee;
-    }
-
-    // This allows us to manually harvest with our keeper as needed
-    function setManualHarvest(bool _keeperHarvestNow) external onlyAuthorized {
-        keeperHarvestNow = _keeperHarvestNow;
     }
 
     // set if we want to sell our swap partly on sushi or just uniV3
