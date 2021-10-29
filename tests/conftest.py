@@ -146,7 +146,7 @@ def other_vault_strategy():
 #     strategist,
 #     keeper,
 #     vault,
-#     StrategyDAOStaking,
+#     StrategyBarnDAOStaking,
 #     gov,
 #     guardian,
 #     rewardscontract,
@@ -176,7 +176,7 @@ def strategy(
     strategist,
     keeper,
     vault,
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     gov,
     guardian,
     rewardscontract,
@@ -190,7 +190,7 @@ def strategy(
 ):
     # parameters for this are: strategy, vault, max deposit, minTimePerInvest, slippage protection (10000 = 100% slippage allowed),
     strategy = guardian.deploy(
-        StrategyDAOStaking,
+        StrategyBarnDAOStaking,
         vault,
         rewardscontract,
         emissionToken,

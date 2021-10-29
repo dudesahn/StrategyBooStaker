@@ -13,7 +13,7 @@ def test_migration(
     strategy,
     chain,
     strategist_ms,
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     rewardscontract,
     amount,
     staking,
@@ -30,7 +30,7 @@ def test_migration(
 
     # deploy our new strategy
     new_strategy = guardian.deploy(
-        StrategyDAOStaking,
+        StrategyBarnDAOStaking,
         vault,
         rewardscontract,
         emissionToken,

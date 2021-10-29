@@ -12,7 +12,7 @@ def test_cloning(
     keeper,
     rewards,
     chain,
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     guardian,
     amount,
     rewardscontract,
@@ -35,7 +35,7 @@ def test_cloning(
         )
 
     ## clone our strategy
-    tx = strategy.cloneDAOStrategy(
+    tx = strategy.cloneBarnDAOStrategy(
         vault,
         strategist,
         rewards,
@@ -46,7 +46,7 @@ def test_cloning(
         strategy_name,
         {"from": gov},
     )
-    newStrategy = StrategyDAOStaking.at(tx.return_value)
+    newStrategy = StrategyBarnDAOStaking.at(tx.return_value)
 
     # Shouldn't be able to call initialize again
     with brownie.reverts():
@@ -64,7 +64,7 @@ def test_cloning(
 
     ## shouldn't be able to clone a clone
     with brownie.reverts():
-        newStrategy.cloneDAOStrategy(
+        newStrategy.cloneBarnDAOStrategy(
             vault,
             strategist,
             rewards,

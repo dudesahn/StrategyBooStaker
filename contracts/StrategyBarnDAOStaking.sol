@@ -69,7 +69,7 @@ interface IFarming {
     function massHarvest() external returns (uint256); // this is claiming our rewards
 }
 
-contract StrategyDAOStaking is BaseStrategy {
+contract StrategyBarnDAOStaking is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -91,7 +91,6 @@ contract StrategyDAOStaking is BaseStrategy {
     bool public sellOnSushi; // determine if we sell partially on sushi or all on Uni v3
     uint24 public uniWantFee; // this is equal to 0.3%, can change this later if a different path becomes more optimal
     uint256 public maxGasPrice; // this is the max gas price we want our keepers to pay for harvests/tends in gwei
-    IBaseFee public _baseFeeOracle; // ******* REMOVE THIS AFTER TESTING *******
 
     IERC20 public constant usdc =
         IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -118,7 +117,7 @@ contract StrategyDAOStaking is BaseStrategy {
     event Cloned(address indexed clone);
 
     // we use this to clone our original strategy to other vaults
-    function cloneDAOStrategy(
+    function cloneBarnDAOStrategy(
         address _vault,
         address _strategist,
         address _rewards,
@@ -146,7 +145,7 @@ contract StrategyDAOStaking is BaseStrategy {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        StrategyDAOStaking(newStrategy).initialize(
+        StrategyBarnDAOStaking(newStrategy).initialize(
             _vault,
             _strategist,
             _rewards,
@@ -488,7 +487,8 @@ contract StrategyDAOStaking is BaseStrategy {
     }
 
     function readBaseFee() internal view returns (uint256 baseFee) {
-        // IBaseFee _baseFeeOracle = IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549); ******* UNCOMMENT THIS AFTER TESTING *******
+        IBaseFee _baseFeeOracle =
+            IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
         return _baseFeeOracle.basefee_global();
     }
 
@@ -521,10 +521,5 @@ contract StrategyDAOStaking is BaseStrategy {
     // set if we want to sell our swap partly on sushi or just uniV3
     function setSellOnSushi(bool _sellOnSushi) external onlyAuthorized {
         sellOnSushi = _sellOnSushi;
-    }
-
-    // set the maximum gas price we want to pay for a harvest/tend in gwei, ******* REMOVE THIS AFTER TESTING *******
-    function setGasOracle(address _gasOracle) external onlyAuthorized {
-        _baseFeeOracle = IBaseFee(_gasOracle);
     }
 }

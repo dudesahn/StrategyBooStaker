@@ -13,7 +13,7 @@ def test_odds_and_ends(
     strategy,
     chain,
     strategist_ms,
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     amount,
     strategy_name,
     emissionToken,
@@ -54,7 +54,7 @@ def test_odds_and_ends(
     # we can try to migrate too, lol
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyDAOStaking,
+        StrategyBarnDAOStaking,
         vault,
         rewardscontract,
         emissionToken,
@@ -113,7 +113,7 @@ def test_odds_and_ends_2(
     strategy,
     chain,
     strategist_ms,
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     amount,
     staking,
 ):
@@ -149,7 +149,7 @@ def test_odds_and_ends_2(
 
 
 def test_odds_and_ends_migration(
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     gov,
     token,
     vault,
@@ -175,7 +175,7 @@ def test_odds_and_ends_migration(
 
     # deploy our new strategy
     new_strategy = strategist.deploy(
-        StrategyDAOStaking,
+        StrategyBarnDAOStaking,
         vault,
         rewardscontract,
         emissionToken,
@@ -381,7 +381,7 @@ def test_weird_reverts_and_trigger(
     strategy,
     chain,
     strategist_ms,
-    StrategyDAOStaking,
+    StrategyBarnDAOStaking,
     other_vault_strategy,
     amount,
 ):
