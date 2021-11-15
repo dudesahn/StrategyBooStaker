@@ -299,6 +299,11 @@ contract StrategyBarnDAOStaking is BaseStrategy {
         }
     }
 
+    // manually claim any earned rewards
+    function manualClaim() external onlyGovernance {
+        IFarming(farmingContract).massHarvest();
+    }
+
     // sell from want to USDC via sushi, USDC -> WETH via Uni, WETH -> want via Uni
     function _sellMostlyOnUni(uint256 _amount) internal {
         // sell our emission token for USDC on sushi
