@@ -14,11 +14,12 @@ def test_simple_harvest(
     chain,
     strategist_ms,
     staking,
+    amount,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(1000e18, {"from": whale})
+    vault.deposit(amount, {"from": whale})
     newWhale = token.balanceOf(whale)
 
     # harvest, store asset amount

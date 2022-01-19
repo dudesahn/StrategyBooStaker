@@ -4,30 +4,39 @@ from brownie import config
 
 # test passes as of 21-06-26
 def test_change_debt(
-    gov, token, vault, dudesahn, strategist, whale, strategy, chain, rewardscontract,
+    gov,
+    token,
+    vault,
+    strategist,
+    whale,
+    strategy,
+    chain,
+    amount,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(1000e18, {"from": whale})
+    vault.deposit(amount, {"from": whale})
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
     # evaluate our current total assets
-    startingLive = strategy.estimatedTotalAssets()
+    old_assets = vault.totalAssets()
+    startingStrategy = strategy.estimatedTotalAssets()
 
     # debtRatio is in BPS (aka, max is 10,000, which represents 100%), and is a fraction of the funds that can be in the strategy
     currentDebt = 10000
     vault.updateStrategyDebtRatio(strategy, currentDebt / 2, {"from": gov})
-    chain.sleep(1)
+    # sleep for a day to make sure we are swapping enough (Uni v3 combined with only 6 decimals)
+    chain.sleep(86400)
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    assert strategy.estimatedTotalAssets() <= (startingLive)
+    assert strategy.estimatedTotalAssets() <= startingStrategy
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # set DebtRatio back to 100%
@@ -35,12 +44,17 @@ def test_change_debt(
     chain.sleep(1)
     strategy.harvest({"from": gov})
     chain.sleep(1)
-    assert strategy.estimatedTotalAssets() >= startingLive
+
+    # evaluate our current total assets
+    new_assets = vault.totalAssets()
+
+    # confirm we made money, or at least that we have about the same
+    assert new_assets >= old_assets or math.isclose(new_assets, old_assets, abs_tol=5)
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
     chain.mine(1)
 
-    # withdraw and confirm we made money or at least got it back
+    # withdraw and confirm our whale made money
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale

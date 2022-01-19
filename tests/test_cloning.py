@@ -6,39 +6,83 @@ def test_cloning(
     gov,
     token,
     vault,
-    dudesahn,
     strategist,
     whale,
     strategy,
     keeper,
     rewards,
     chain,
-    strategist_ms,
-    staking,
-    StrategyUniverseStaking,
+    StrategyBarnDAOStaking,
+    guardian,
+    amount,
     rewardscontract,
+    emissionToken,
+    staking,
+    strategy_name,
 ):
-
     # Shouldn't be able to call initialize again
     with brownie.reverts():
         strategy.initialize(
-            vault, strategist, rewards, keeper, rewardscontract, {"from": gov},
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            rewardscontract,
+            emissionToken,
+            staking,
+            strategy_name,
+            {"from": gov},
         )
 
     ## clone our strategy
-    tx = strategy.clone(
-        vault, strategist, rewards, keeper, rewardscontract, {"from": gov}
+    tx = strategy.cloneBarnDAOStrategy(
+        vault,
+        strategist,
+        rewards,
+        keeper,
+        rewardscontract,
+        emissionToken,
+        staking,
+        strategy_name,
+        {"from": gov},
     )
-    newStrategy = StrategyUniverseStaking.at(tx.return_value)
+    newStrategy = StrategyBarnDAOStaking.at(tx.return_value)
 
     # Shouldn't be able to call initialize again
     with brownie.reverts():
         newStrategy.initialize(
-            vault, strategist, rewards, keeper, rewardscontract, {"from": gov},
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            rewardscontract,
+            emissionToken,
+            staking,
+            strategy_name,
+            {"from": gov},
         )
 
+    ## shouldn't be able to clone a clone
+    with brownie.reverts():
+        newStrategy.cloneBarnDAOStrategy(
+            vault,
+            strategist,
+            rewards,
+            keeper,
+            rewardscontract,
+            emissionToken,
+            staking,
+            strategy_name,
+            {"from": gov},
+        )
+
+    # revoke and send all funds back to vault
     vault.revokeStrategy(strategy, {"from": gov})
+    strategy.harvest({"from": gov})
+
+    # attach our new strategy and approve it on the proxy
     vault.addStrategy(newStrategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
+
     assert vault.withdrawalQueue(1) == newStrategy
     assert vault.strategies(newStrategy)[2] == 10_000
     assert vault.withdrawalQueue(0) == strategy
@@ -48,19 +92,17 @@ def test_cloning(
     before_pps = vault.pricePerShare()
     startingWhale = token.balanceOf(whale)
     token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(1000e18, {"from": whale})
+    vault.deposit(amount, {"from": whale})
 
     # harvest, store asset amount
-    newStrategy.harvest({"from": gov})
+    tx = newStrategy.harvest({"from": gov})
     old_assets_dai = vault.totalAssets()
     assert old_assets_dai > 0
     assert token.balanceOf(newStrategy) == 0
     assert newStrategy.estimatedTotalAssets() > 0
-    assert staking.balanceOf(newStrategy, token) > 0
     print("\nStarting Assets: ", old_assets_dai / 1e18)
-    print("\nAssets Staked: ", staking.balanceOf(newStrategy, token) / 1e18)
 
-    # simulate 9 days of earnings
+    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
     chain.sleep(86400 * 9)
     chain.mine(1)
 
@@ -71,7 +113,7 @@ def test_cloning(
     assert new_assets_dai >= old_assets_dai
     print("\nAssets after 2 days: ", new_assets_dai / 1e18)
 
-    # Display estimated APR based on the two days before the pay out
+    # Display estimated APR
     print(
         "\nEstimated SUSHI APR: ",
         "{:.2%}".format(
