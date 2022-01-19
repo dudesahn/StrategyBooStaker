@@ -18,25 +18,6 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
-interface IBaseFee {
-    function basefee_global() external view returns (uint256);
-}
-
-interface IUniV3 {
-    struct ExactInputParams {
-        bytes path;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
-
-    function exactInput(ExactInputParams calldata params)
-        external
-        payable
-        returns (uint256 amountOut);
-}
-
 interface IUniswapV2Router02 {
     function swapExactTokensForTokens(
         uint256 amountIn,
@@ -63,10 +44,6 @@ interface IStaking {
         external
         view
         returns (uint256); // how much of our want we have staked
-}
-
-interface IFarming {
-    function massHarvest() external returns (uint256); // this is claiming our rewards
 }
 
 contract StrategyBarnDAOStaking is BaseStrategy {
@@ -460,12 +437,7 @@ contract StrategyBarnDAOStaking is BaseStrategy {
         // Should not trigger if strategy is not active (no assets and no debtRatio). This means we don't need to adjust keeper job.
         if (!isActive()) return false;
 
-        // check if the base fee gas price is higher than we allow
-        if (readBaseFee() > maxGasPrice) {
-            return false;
-        }
-
-        return super.harvestTrigger(callCostinEth);
+        return false;
     }
 
     function ethToWant(uint256 _amtInWei)
@@ -473,58 +445,9 @@ contract StrategyBarnDAOStaking is BaseStrategy {
         view
         override
         returns (uint256)
-    {
-        uint256 _ethToWant;
-        if (_amtInWei > 0) {
-            address[] memory ethPath = new address[](2);
-            ethPath[0] = address(weth);
-            ethPath[1] = address(want);
+    {}
 
-            uint256[] memory callCostInWant =
-                IUniswapV2Router02(sushiswapRouter).getAmountsOut(
-                    _amtInWei,
-                    ethPath
-                );
-
-            _ethToWant = callCostInWant[callCostInWant.length - 1];
-        }
-        return _ethToWant;
-    }
-
-    function readBaseFee() internal view returns (uint256 baseFee) {
-        IBaseFee _baseFeeOracle =
-            IBaseFee(0xf8d0Ec04e94296773cE20eFbeeA82e76220cD549);
-        return _baseFeeOracle.basefee_global();
-    }
 
     /* ========== SETTERS ========== */
 
-    // set number of batches we sell our claimed emissionToken in
-    function setSellsPerEpoch(uint256 _sellsPerEpoch)
-        external
-        onlyEmergencyAuthorized
-    {
-        require(
-            15 > _sellsPerEpoch && _sellsPerEpoch > 0,
-            "Must be above 0 and less than 15"
-        );
-        sellsPerEpoch = _sellsPerEpoch;
-        // reset our counter to be safe
-        sellCounter = 0;
-    }
-
-    // set the maximum gas price we want to pay for a harvest/tend in gwei
-    function setGasPrice(uint256 _maxGasPrice) external onlyAuthorized {
-        maxGasPrice = _maxGasPrice.mul(1e9);
-    }
-
-    // set the fee pool we'd like to swap through for if we're swapping from ETH to want on UniV3
-    function setUniWantFee(uint24 _fee) external onlyAuthorized {
-        uniWantFee = _fee;
-    }
-
-    // set if we want to sell our swap partly on sushi or just uniV3
-    function setSellOnSushi(bool _sellOnSushi) external onlyAuthorized {
-        sellOnSushi = _sellOnSushi;
-    }
 }
