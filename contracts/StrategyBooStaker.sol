@@ -213,6 +213,10 @@ contract StrategyBooStaker is BaseStrategy {
         return xboo.xBOOForBOO(xbooInMasterchef);
     }
 
+     function xbooInStrategy() public view returns (uint256) {
+         return xboo.xBOOForBOO(xboo.balanceOf(address(this)));
+     }
+
     function xbooStakedInMasterchef() public view returns (uint256) {
         (uint256 xbooInMasterchef, ) = masterchef.userInfo(pid, address(this));
         return xbooInMasterchef;
@@ -220,7 +224,7 @@ contract StrategyBooStaker is BaseStrategy {
 
     function estimatedTotalAssets() public view override returns (uint256) {
         // look at our staked tokens and any free tokens sitting in the strategy
-        return balanceOfStaked().add(balanceOfWant());
+        return balanceOfStaked().add(balanceOfWant()).add(xbooInStrategy);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
