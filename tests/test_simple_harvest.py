@@ -14,7 +14,8 @@ def test_simple_harvest(
     chain,
     strategist_ms,
     amount,
-    accounts
+    accounts,
+    no_profit,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -42,7 +43,10 @@ def test_simple_harvest(
     chain.sleep(1)
     new_assets = vault.totalAssets()
     # confirm we made money, or at least that we have about the same
-    assert new_assets >= old_assets
+    if no_profit:
+        assert math.isclose(new_assets, old_assets, abs_tol=10)
+    else:
+        assert new_assets >= old_assets
     print("\nVault total assets after 1 harvest: ", new_assets / 1e18)
 
     # Display estimated APR
@@ -52,13 +56,18 @@ def test_simple_harvest(
             ((new_assets - old_assets) * (365 * 2)) / (strategy.estimatedTotalAssets())
         ),
     )
-    
+
     # transfer 1000 BOO from our other whale to the xBOO contract
-    print("Total Estimated Assets before donation:", strategy.estimatedTotalAssets()/1e18)
+    print(
+        "Total Estimated Assets before donation:",
+        strategy.estimatedTotalAssets() / 1e18,
+    )
     whale_2 = accounts.at("0xE0c15e9Fe90d56472D8a43da5D3eF34ae955583C", force=True)
     xboo = Contract("0xa48d959AE2E88f1dAA7D5F611E01908106dE7598")
     token.transfer(xboo.address, 1000e18, {"from": whale_2})
-    print("Total Estimated Assets After Donation:", strategy.estimatedTotalAssets()/1e18)
+    print(
+        "Total Estimated Assets After Donation:", strategy.estimatedTotalAssets() / 1e18
+    )
 
     # simulate 12 hours of earnings
     chain.mine(1)
@@ -81,6 +90,6 @@ def test_simple_harvest(
         ),
     )
 
-    # withdraw and confirm we made money, or at least that we have about the same
+    # withdraw and confirm our whale made money, or that we didn't lose more than dust
     vault.withdraw({"from": whale})
     assert token.balanceOf(whale) >= startingWhale

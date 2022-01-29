@@ -15,6 +15,12 @@ def test_setters(
     strategist_ms,
 ):
 
+    ## deposit to the vault after approving
+    startingWhale = token.balanceOf(whale)
+    token.approve(vault, 2 ** 256 - 1, {"from": whale})
+    vault.deposit(amount, {"from": whale})
+    chain.sleep(1)
+
     # test our manual harvest trigger
     strategy.setForceHarvestTriggerOnce(True, {"from": gov})
     tx = strategy.harvestTrigger(0, {"from": gov})
@@ -35,13 +41,6 @@ def test_setters(
     tx = strategy.harvestTrigger(0, {"from": gov})
     print("\nShould we harvest? Should be false.", tx)
     assert tx == False
-
-    ## deposit to the vault after approving
-    startingWhale = token.balanceOf(whale)
-    token.approve(vault, 2 ** 256 - 1, {"from": whale})
-    vault.deposit(amount, {"from": whale})
-    chain.sleep(1)
-    strategy.harvest({"from": gov})
 
     # test our setters in baseStrategy and our main strategy
     strategy.setDebtThreshold(1, {"from": gov})
@@ -67,7 +66,7 @@ def test_setters(
     chain.mine(1)
 
     zero = "0x0000000000000000000000000000000000000000"
-    
+
     with brownie.reverts():
         strategy.setKeeper(zero, {"from": gov})
     with brownie.reverts():

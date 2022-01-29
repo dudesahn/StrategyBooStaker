@@ -17,6 +17,7 @@ def test_odds_and_ends(
     StrategyBooStaker,
     amount,
     strategy_name,
+    is_slippery,
 ):
 
     ## deposit to the vault after approving. turn off health check before each harvest since we're doing weird shit
@@ -71,7 +72,11 @@ def test_odds_and_ends(
     chain.mine(1)
     new_strategy.harvest({"from": gov})
     new_strat_balance = new_strategy.estimatedTotalAssets()
-    assert new_strat_balance >= total_old
+    # confirm we made money, or at least that we have about the same
+    if is_slippery:
+        assert math.isclose(new_strat_balance, total_old, abs_tol=10)
+    else:
+        assert new_strat_balance >= total_old
 
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
@@ -133,7 +138,7 @@ def test_odds_and_ends_2(
     print("xBoo Balance of Vault", to_send)
     xboo.transfer(gov, to_send, {"from": strategy})
     assert strategy.estimatedTotalAssets() == 0
-    
+
     strategy.setEmergencyExit({"from": gov})
 
     chain.sleep(1)
@@ -228,6 +233,7 @@ def test_odds_and_ends_liquidatePosition(
     chain,
     strategist_ms,
     amount,
+    no_profit,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -275,9 +281,10 @@ def test_odds_and_ends_liquidatePosition(
 
     # withdraw and confirm we made money, or at least that we have about the same
     vault.withdraw({"from": whale})
-    assert token.balanceOf(whale) + amount >= startingWhale or math.isclose(
-        token.balanceOf(whale), startingWhale, abs_tol=5
-    )
+    if no_profit:
+        assert math.isclose(token.balanceOf(whale) + amount, startingWhale, abs_tol=10)
+    else:
+        assert token.balanceOf(whale) + amount >= startingWhale
 
 
 def test_odds_and_ends_rekt(

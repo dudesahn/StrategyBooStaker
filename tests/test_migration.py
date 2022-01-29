@@ -19,6 +19,8 @@ def test_migration(
     amount,
     strategy_name,
     pid,
+    is_slippery,
+    no_profit,
 ):
 
     ## deposit to the vault after approving
@@ -62,9 +64,10 @@ def test_migration(
     new_strat_balance = new_strategy.estimatedTotalAssets()
 
     # confirm we made money, or at least that we have about the same
-    assert new_strat_balance >= total_old or math.isclose(
-        new_strat_balance, total_old, abs_tol=5
-    )
+    if is_slippery and no_profit:
+        assert math.isclose(new_strat_balance, total_old, abs_tol=10)
+    else:
+        assert new_strat_balance >= total_old
 
     startingVault = vault.totalAssets()
     print("\nVault starting assets with new strategy: ", startingVault)
@@ -76,8 +79,11 @@ def test_migration(
     # Test out our migrated strategy, confirm we're making a profit
     new_strategy.harvest({"from": gov})
     vaultAssets_2 = vault.totalAssets()
+
     # confirm we made money, or at least that we have about the same
-    assert vaultAssets_2 >= startingVault or math.isclose(
-        vaultAssets_2, startingVault, abs_tol=5
-    )
+    if is_slippery and no_profit:
+        assert math.isclose(vaultAssets_2, startingVault, abs_tol=10)
+    else:
+        assert vaultAssets_2 >= startingVault
+
     print("\nAssets after 1 day harvest: ", vaultAssets_2)

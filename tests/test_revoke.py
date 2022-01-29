@@ -12,6 +12,7 @@ def test_revoke_strategy_from_vault(
     chain,
     strategy,
     amount,
+    no_profit,
 ):
 
     ## deposit to the vault after approving
@@ -36,16 +37,29 @@ def test_revoke_strategy_from_vault(
     vaultAssets_after_revoke = vault.totalAssets()
 
     # confirm we made money, or at least that we have about the same
-    assert vaultAssets_after_revoke >= vaultAssets_starting or math.isclose(
-        vaultAssets_after_revoke, vaultAssets_starting, abs_tol=5
-    )
-    assert strategy.estimatedTotalAssets() == 0
-    assert token.balanceOf(vault) >= vault_holdings_starting + strategy_starting
+    # if we have any profit,
+    if no_profit:
+        assert math.isclose(vaultAssets_after_revoke, vaultAssets_starting, abs_tol=10)
+        assert math.isclose(
+            token.balanceOf(vault),
+            vault_holdings_starting + strategy_starting,
+            abs_tol=10,
+        )
+    else:
+        assert vaultAssets_after_revoke >= vaultAssets_starting
+        assert token.balanceOf(vault) >= vault_holdings_starting + strategy_starting
+
+    # we may get a few wei leftover due to conversion of xBOO or similar tokens
+    # if we want to 100% empty strategy, use emergency exit instead
+    assert strategy.estimatedTotalAssets() < 10
 
     # simulate a day of waiting for share price to bump back up
     chain.sleep(86400)
     chain.mine(1)
 
-    # withdraw and confirm we made money
+    # withdraw and confirm our whale made money, or that we didn't lose more than dust
     vault.withdraw({"from": whale})
-    assert token.balanceOf(whale) >= startingWhale
+    if no_profit:
+        assert math.isclose(token.balanceOf(whale), startingWhale, abs_tol=10)
+    else:
+        assert token.balanceOf(whale) >= startingWhale

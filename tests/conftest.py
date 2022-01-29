@@ -24,9 +24,30 @@ def amount():
 
 # this is the pool ID that we are staking our xBOO for
 @pytest.fixture(scope="module")
-def pid():
-    pid = 2
+def pid():  # 2 doesn't have any yield right now (FTM foundation), but 3 does
+    pid = 3
     yield pid
+
+
+# use this to test our strategy in case there are no profits
+@pytest.fixture(scope="module")
+def no_profit():
+    no_profit = False
+    yield no_profit
+
+
+# use this when we might lose a few wei on conversions between want and another deposit token
+@pytest.fixture(scope="module")
+def is_slippery():
+    is_slippery = True
+    yield is_slippery
+
+
+# use this to test our strategy in case there are no profits
+@pytest.fixture(scope="module")
+def no_profit():
+    no_profit = False
+    yield no_profit
 
 
 # this is the name we want to give our strategy
@@ -42,6 +63,20 @@ def token():
     # this should be the address of the ERC-20 used by the strategy/vault
     token_address = "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE"
     yield Contract(token_address)
+
+
+# this is our xboo token
+@pytest.fixture(scope="module")
+def xboo():
+    xboo = "0xa48d959AE2E88f1dAA7D5F611E01908106dE7598"
+    yield Contract(xboo)
+
+
+# this is where we stake our xBOO for extra yield
+@pytest.fixture(scope="module")
+def masterchef():
+    masterchef = "0x2352b745561e7e6FCD03c093cE7220e3e126ace0"
+    yield Contract(masterchef)
 
 
 # Only worry about changing things above this line, unless you want to make changes to the vault or strategy.

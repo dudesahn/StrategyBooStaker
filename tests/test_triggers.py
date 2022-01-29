@@ -14,6 +14,7 @@ def test_triggers(
     chain,
     strategist_ms,
     amount,
+    no_profit,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -58,9 +59,13 @@ def test_triggers(
     # allow share price to rise
     chain.sleep(43200)
     chain.mine(1)
-    
+
+    # withdraw and confirm our whale made money, or that we didn't lose more than dust
     vault.withdraw({"from": whale})
-    assert token.balanceOf(whale) >= startingWhale
+    if no_profit:
+        assert math.isclose(token.balanceOf(whale), startingWhale, abs_tol=10)
+    else:
+        assert token.balanceOf(whale) >= startingWhale
 
 
 def test_less_useful_triggers(
