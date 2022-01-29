@@ -12,6 +12,8 @@ def test_emergency_shutdown_from_vault(
     strategy,
     chain,
     amount,
+    is_slippery,
+    no_profit,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -21,8 +23,14 @@ def test_emergency_shutdown_from_vault(
     strategy.harvest({"from": gov})
     chain.sleep(1)
 
-    # simulate nine days of earnings to hit at least one epoch
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
+
+    chain.mine(1)
+    strategy.harvest({"from": gov})
+
+    # simulate one day of earnings
+    chain.sleep(86400)
 
     # set emergency and exit, then confirm that the strategy has no funds
     vault.setEmergencyShutdown(True, {"from": gov})
@@ -35,8 +43,9 @@ def test_emergency_shutdown_from_vault(
     chain.sleep(86400)
     chain.mine(1)
 
-    # withdraw and confirm we made money
+    # withdraw and confirm our whale made money, or that we didn't lose more than dust
     vault.withdraw({"from": whale})
-    assert token.balanceOf(whale) >= startingWhale or math.isclose(
-        token.balanceOf(whale), startingWhale, abs_tol=5
-    )
+    if is_slippery and no_profit:
+        assert math.isclose(token.balanceOf(whale), startingWhale, abs_tol=10)
+    else:
+        assert token.balanceOf(whale) >= startingWhale

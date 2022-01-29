@@ -1,5 +1,6 @@
 import brownie
 from brownie import Wei, accounts, Contract, config
+import math
 
 # test passes as of 21-06-26
 def test_cloning(
@@ -12,13 +13,13 @@ def test_cloning(
     keeper,
     rewards,
     chain,
-    StrategyBarnDAOStaking,
+    StrategyBooStaker,
     guardian,
     amount,
-    rewardscontract,
-    emissionToken,
-    staking,
+    pid,
     strategy_name,
+    no_profit,
+    is_slippery,
 ):
     # Shouldn't be able to call initialize again
     with brownie.reverts():
@@ -27,26 +28,22 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            rewardscontract,
-            emissionToken,
-            staking,
+            pid,
             strategy_name,
             {"from": gov},
         )
 
     ## clone our strategy
-    tx = strategy.cloneBarnDAOStrategy(
+    tx = strategy.cloneBooStaker(
         vault,
         strategist,
         rewards,
         keeper,
-        rewardscontract,
-        emissionToken,
-        staking,
+        pid,
         strategy_name,
         {"from": gov},
     )
-    newStrategy = StrategyBarnDAOStaking.at(tx.return_value)
+    newStrategy = StrategyBooStaker.at(tx.return_value)
 
     # Shouldn't be able to call initialize again
     with brownie.reverts():
@@ -55,23 +52,19 @@ def test_cloning(
             strategist,
             rewards,
             keeper,
-            rewardscontract,
-            emissionToken,
-            staking,
+            pid,
             strategy_name,
             {"from": gov},
         )
 
     ## shouldn't be able to clone a clone
     with brownie.reverts():
-        newStrategy.cloneBarnDAOStrategy(
+        newStrategy.cloneBooStaker(
             vault,
             strategist,
             rewards,
             keeper,
-            rewardscontract,
-            emissionToken,
-            staking,
+            pid,
             strategy_name,
             {"from": gov},
         )
@@ -102,22 +95,27 @@ def test_cloning(
     assert newStrategy.estimatedTotalAssets() > 0
     print("\nStarting Assets: ", old_assets_dai / 1e18)
 
-    # simulate nine days of earnings to make sure we hit at least one epoch of rewards
-    chain.sleep(86400 * 9)
+    # simulate one day of earnings
+    chain.sleep(86400)
     chain.mine(1)
 
     # harvest after a day, store new asset amount
     newStrategy.harvest({"from": gov})
     new_assets_dai = vault.totalAssets()
     # we can't use strategyEstimated Assets because the profits are sent to the vault
-    assert new_assets_dai >= old_assets_dai
+    # if we're not making profit, check that we didn't lose too much on conversions
+    if is_slippery and no_profit:
+        assert math.isclose(new_assets_dai, old_assets_dai, abs_tol=10)
+    else:
+        assert new_assets_dai >= old_assets_dai
+
     print("\nAssets after 2 days: ", new_assets_dai / 1e18)
 
     # Display estimated APR
     print(
-        "\nEstimated SUSHI APR: ",
+        "\nEstimated APR: ",
         "{:.2%}".format(
-            ((new_assets_dai - old_assets_dai) * (365 / 9))
+            ((new_assets_dai - old_assets_dai) * (365))
             / (newStrategy.estimatedTotalAssets())
         ),
     )
@@ -126,7 +124,10 @@ def test_cloning(
     chain.sleep(86400)
     chain.mine(1)
 
-    # withdraw and confirm we made money
+    # withdraw and confirm our whale made money, or that we didn't lose more than dust
     vault.withdraw({"from": whale})
-    assert token.balanceOf(whale) >= startingWhale
-    assert vault.pricePerShare() > before_pps
+    if is_slippery and no_profit:
+        assert math.isclose(token.balanceOf(whale), startingWhale, abs_tol=10)
+    else:
+        assert token.balanceOf(whale) >= startingWhale
+    assert vault.pricePerShare() >= before_pps

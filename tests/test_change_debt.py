@@ -1,6 +1,7 @@
 import brownie
 from brownie import Contract
 from brownie import config
+import math
 
 # test passes as of 21-06-26
 def test_change_debt(
@@ -12,6 +13,8 @@ def test_change_debt(
     strategy,
     chain,
     amount,
+    is_slippery,
+    no_profit,
 ):
     ## deposit to the vault after approving
     startingWhale = token.balanceOf(whale)
@@ -55,6 +58,9 @@ def test_change_debt(
     chain.sleep(86400)
     chain.mine(1)
 
-    # withdraw and confirm our whale made money
+    # withdraw and confirm our whale made money, or that we didn't lose more than dust
     vault.withdraw({"from": whale})
-    assert token.balanceOf(whale) >= startingWhale
+    if is_slippery and no_profit:
+        assert math.isclose(token.balanceOf(whale), startingWhale, abs_tol=10)
+    else:
+        assert token.balanceOf(whale) >= startingWhale
